@@ -43,6 +43,14 @@ function maskKey(key: string) {
   return key.length <= 4 ? "••••" : `••••••••${key.slice(-4)}`;
 }
 
+function browserKeys(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === "string" && key.trim().length > 0).map((key) => key.trim()).slice(0, 10) : [];
+  } catch { return []; }
+}
+
 export async function POST(request: Request) {
   const formData = await request.formData();
   const image = formData.get("image");
@@ -50,7 +58,9 @@ export async function POST(request: Request) {
   if (!ALLOWED_TYPES.has(image.type)) return NextResponse.json({ error: "Only JPG, PNG, and WEBP images are supported." }, { status: 400 });
   if (image.size > MAX_FILE_SIZE) return NextResponse.json({ error: "Image is too large. Vercel accepts images up to 4 MB only." }, { status: 400 });
 
-  const keys = (process.env.GEMINI_API_KEYS ?? "").split(",").map((key) => key.trim()).filter(Boolean);
+  const savedBrowserKeys = browserKeys(formData.get("browserKeys"));
+  const environmentKeys = (process.env.GEMINI_API_KEYS ?? "").split(",").map((key) => key.trim()).filter(Boolean);
+  const keys = savedBrowserKeys.length ? savedBrowserKeys : environmentKeys;
   if (!keys.length) return NextResponse.json({ error: "Extraction is not configured yet." }, { status: 503 });
 
   const base64 = Buffer.from(await image.arrayBuffer()).toString("base64");

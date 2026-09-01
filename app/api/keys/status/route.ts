@@ -10,6 +10,18 @@ function configuredKeys() {
   return (process.env.GEMINI_API_KEYS ?? "").split(",").map((value) => value.trim()).filter(Boolean);
 }
 
+async function requestKeys(request: Request) {
+  try {
+    const body: unknown = await request.json();
+    const keys = (body as { browserKeys?: unknown }).browserKeys;
+    if (Array.isArray(keys)) {
+      const valid = keys.filter((key): key is string => typeof key === "string" && key.trim().length > 0).map((key) => key.trim()).slice(0, 10);
+      if (valid.length) return valid;
+    }
+  } catch { /* no JSON body: use environment keys */ }
+  return configuredKeys();
+}
+
 function maskKey(key: string) {
   return key.length <= 4 ? "••••" : `••••••••${key.slice(-4)}`;
 }
@@ -26,8 +38,8 @@ export async function GET() {
   return NextResponse.json({ keys: keys.map((key, index) => ({ slot: index + 1, masked: maskKey(key), state: "unavailable" as const })) });
 }
 
-export async function POST() {
-  const keys = configuredKeys();
+export async function POST(request: Request) {
+  const keys = await requestKeys(request);
   if (!keys.length) return NextResponse.json({ error: "No Gemini API keys are configured." }, { status: 503 });
 
   const results: KeyResult[] = [];
