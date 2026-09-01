@@ -74,6 +74,16 @@ Amounts remain strings for source fidelity. The client parses a numeric value on
 - Test IndexedDB CRUD including recovery after a page refresh.
 - Manually test upload → extract → edit → save → refresh → reopen → delete.
 
+## Batch OCR and profit/loss extension
+
+- Accept one to five JPG, PNG, or WEBP images per batch, with a 10 MB per-image and 50 MB total limit.
+- Process images sequentially in the browser. Each image calls the existing extraction endpoint independently, preserving per-request key failover and avoiding serverless timeout risk.
+- Show current file/progress and keep successful rows when another image fails. Show safe per-image errors after completion.
+- Restrict the structured backend and editor schema to `နေ့စွဲ | ဝင်ငွေ | ထွက်ငွေ | အမြတ် | အရှုံး`.
+- Gemini extracts only date, revenue, and expense. The server discards any other extracted fields, calculates a positive difference as profit, and calculates a negative difference as loss.
+- Store all original image blobs, image-level extraction metadata, combined rows, and failure details as one IndexedDB saved record. Keep an internal source-image reference on each row.
+- Show income, expense, profit, loss, and net-result totals. Rows remain editable; schema columns are not editable.
+
 ## Decision log
 
 | Decision | Alternatives considered | Reason |
@@ -84,3 +94,5 @@ Amounts remain strings for source fidelity. The client parses a numeric value on
 | Store amounts as strings | Normalize all amounts on extraction | Preserves source text for manual review. |
 | Request-level sequential failover | Shared key health tracking | Appropriate for a low-volume serverless test app. |
 | Upload-only MVP | PDF/camera/multi-page flow | Keeps scope focused. |
+| Sequential five-image batches | Parallel batch, server-side batch, background queue | Preserves progress and partial success without database/queue infrastructure. |
+| Fixed profit/loss schema | Dynamic columns | Enforces the client-required backend contract and ignores unsupported fields. |

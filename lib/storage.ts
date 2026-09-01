@@ -1,8 +1,9 @@
 import { openDB, type DBSchema } from "idb";
 
-export type LedgerRow = { id: string; values: string[] };
+export type LedgerRow = { id: string; values: string[]; sourceImageId?: string };
+export type StoredImage = { id: string; blob: Blob; name: string; type: string; status: "success" | "failed"; error?: string };
 export type SavedLedger = {
-  id: string; image: Blob; imageName: string; imageType: string; rawText: string;
+  id: string; images: StoredImage[]; rawText: string;
   columns: string[]; rows: LedgerRow[]; createdAt: string; updatedAt: string;
 };
 

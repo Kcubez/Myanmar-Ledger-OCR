@@ -1,6 +1,6 @@
 # Myanmar Ledger OCR
 
-Next.js test app for extracting Myanmar handwritten revenue/expense ledger images with Gemini. Results, including original image blobs, are stored only in the browser's IndexedDB.
+Next.js test app for extracting Myanmar handwritten revenue/expense ledger images with Gemini. Results, including original image blobs, are stored only in the browser's IndexedDB. Each uploaded image is limited to 4 MB for Vercel compatibility.
 
 ## Run locally
 
