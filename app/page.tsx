@@ -1,5 +1,5 @@
-import LedgerWorkspace from "../components/LedgerWorkspace";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <main><LedgerWorkspace /></main>;
+  redirect("/dashboard");
 }

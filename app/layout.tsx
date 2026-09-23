@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "စာရင်း OCR",
-  description: "Myanmar handwritten ledger extraction",
+  title: "Ledger Dashboard",
+  description: "Telegram-fed ledger reports and charts",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

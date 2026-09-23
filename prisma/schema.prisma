@@ -1,0 +1,290 @@
+// Prisma schema — single-client ledger system (Telegram ingress, dashboard web).
+// Auth tables mirror BAI-service Better Auth shape; ledger tables per ARCHITECTURE.md.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Better Auth tables ──────────────────────────────────────────────────────
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+  role          String    @default("user") // "user" | "admin"
+  banned        Boolean?
+  banReason     String?
+  banExpires    DateTime?
+
+  sessions         Session[]
+  accounts         Account[]
+  telegramSenders  TelegramSender[]
+  botSettings      BotSettings?
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+// ─── Telegram senders (BAI pattern, ledgers instead of departments) ──────────
+
+model TelegramSender {
+  id              String   @id @default(cuid())
+  telegramUserId  BigInt?
+  firstName       String?
+  lastName        String?
+  username        String?
+  displayName     String?
+  messageCount    Int      @default(0)
+  lastMessageAt   DateTime?
+  activeReportType String  @default("none") // revenue|expense|fuel|brick|maintenance|none
+
+  // Tenant scoping to the owner's User account
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Verification & authorization (email OTP link flow)
+  email              String?
+  isVerified         Boolean   @default(false)
+  otpCode            String?
+  otpExpiresAt       DateTime?
+  isAuthorized       Boolean   @default(false)
+  isDataApprover     Boolean   @default(false) @map("is_data_approver")
+  allowedLedgers     String[]  @default([]) @map("allowed_ledgers")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("telegram_sender")
+  @@index([telegramUserId])
+  @@index([isDataApprover])
+  @@unique([userId, telegramUserId])
+}
+
+// ─── Bot Settings (per owner; BAI-commerce pattern) ──────────────────────────
+// DB-backed bot config. Until the owner saves via /settings, the webhook
+// falls back to TELEGRAM_BOT_TOKEN / TELEGRAM_WEBHOOK_SECRET / GEMINI_API_KEYS
+// env vars (fallback slated for removal one release after cutover).
+
+model BotSettings {
+  id            String   @id @default(cuid())
+  userId        String   @unique @map("user_id")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  botToken      String?  @map("bot_token")
+  webhookSecret String?  @unique @map("webhook_secret")
+  geminiApiKey  String?  @map("gemini_api_key")
+  geminiModel   String   @default("gemini-3.5-flash") @map("gemini_model")
+  isActive      Boolean  @default(false) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("bot_settings")
+}
+
+// ─── Ledger domain ───────────────────────────────────────────────────────────
+
+enum LedgerType {
+  REVENUE
+  EXPENSE
+  MAINTENANCE
+  FUEL
+  BRICK
+}
+
+enum RevenueMethod {
+  CASH
+  KBZ_PAY
+  MMQR
+  KBZ_SPECIAL
+  AYA_SPECIAL
+}
+
+enum ExpenseCategory {
+  BUSINESS_DRAWING
+  PERSONAL_DRAWING
+  OPERATION
+  WAGES
+}
+
+enum ReportStatus {
+  PENDING
+  CONFIRMED
+  NEEDS_REVIEW
+}
+
+model DailyReport {
+  id     String       @id @default(cuid())
+  date   DateTime     @unique @db.Date
+  status ReportStatus @default(PENDING)
+
+  revenueLines     RevenueLine[]
+  expenseLines     ExpenseLine[]
+  maintenanceLines MaintenanceLine[]
+  fuelEntries      FuelEntry[]
+  brickEntries     BrickEntry[]
+  images           SourceImage[]
+  telegramMessages TelegramMessage[]
+
+  // Denormalized totals for fast dashboard reads; recalc on confirm + edit.
+  totalRevenue BigInt   @default(0) @map("total_revenue")
+  totalExpense BigInt   @default(0) @map("total_expense")
+  totalFuelIn  Decimal? @db.Decimal(10, 2) @map("total_fuel_in")
+  totalFuelOut Decimal? @db.Decimal(10, 2) @map("total_fuel_out")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("daily_report")
+  @@index([status])
+}
+
+model RevenueLine {
+  id       String        @id @default(cuid())
+  reportId String        @map("report_id")
+  report   DailyReport   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  method   RevenueMethod
+  amount   BigInt // kyat integer
+
+  @@unique([reportId, method])
+  @@map("revenue_line")
+}
+
+model ExpenseLine {
+  id       String          @id @default(cuid())
+  reportId String          @map("report_id")
+  report   DailyReport     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  category ExpenseCategory
+  name     String?
+  role     String?
+  amount   BigInt // kyat integer
+
+  @@index([reportId, category])
+  @@map("expense_line")
+}
+
+model MaintenanceLine {
+  id       String      @id @default(cuid())
+  reportId String      @map("report_id")
+  report   DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  vehicle  String
+  amount   BigInt // kyat integer
+  part     String?
+  vendor   String?
+
+  @@index([reportId])
+  @@map("maintenance_line")
+}
+
+model FuelEntry {
+  id         String      @id @default(cuid())
+  reportId   String      @map("report_id")
+  report     DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  vehicle    String
+  particular String?
+  inGal      Decimal?    @db.Decimal(10, 2) @map("in_gal")
+  outGal     Decimal?    @db.Decimal(10, 2) @map("out_gal")
+  balanceGal Decimal?    @db.Decimal(10, 2) @map("balance_gal")
+  balanceOk  Boolean?    @map("balance_ok")
+  confidence Float?
+
+  @@index([reportId, vehicle])
+  @@map("fuel_entry")
+}
+
+model BrickEntry {
+  id         String      @id @default(cuid())
+  reportId   String      @map("report_id")
+  report     DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  item       String
+  qty        Decimal?    @db.Decimal(12, 2)
+  unitPrice  BigInt?     @map("unit_price")
+  amount     BigInt?
+  confidence Float?
+
+  @@index([reportId])
+  @@map("brick_entry")
+}
+
+model SourceImage {
+  id             String      @id @default(cuid())
+  reportId       String      @map("report_id")
+  report         DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  ledgerType     LedgerType  @map("ledger_type")
+  storagePath    String?     @map("storage_path")
+  thumbnailPath  String?     @map("thumbnail_path")
+  telegramFileId String?     @map("telegram_file_id")
+  sizeBytes      Int?        @map("size_bytes")
+  rawText        String?     @db.Text @map("raw_text")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  @@index([reportId, ledgerType])
+  @@map("source_image")
+}
+
+model TelegramMessage {
+  id         String       @id @default(cuid())
+  reportId   String?      @map("report_id")
+  report     DailyReport? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  chatId     String       @map("chat_id")
+  messageId  Int          @map("message_id")
+  ledgerType LedgerType?  @map("ledger_type")
+  status     String       @default("received")
+  error      String?
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  @@unique([chatId, messageId])
+  @@index([chatId])
+  @@map("telegram_message")
+}
