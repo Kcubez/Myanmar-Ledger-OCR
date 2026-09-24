@@ -245,22 +245,31 @@ async function handleText(
       return;
     }
     // Inherit pre-registered scopes/approver flag from an admin-created row.
+    // The placeholder (telegramUserId null) is consumed here so /settings
+    // stops showing a stale PENDING duplicate next to the LINKED row.
     const pre = sender.email
       ? await prisma.telegramSender.findFirst({
-          where: { email: sender.email, id: { not: sender.id }, userId: ownerUserId },
+          where: { email: sender.email, id: { not: sender.id }, userId: ownerUserId, telegramUserId: null },
         })
       : null;
     await prisma.telegramSender.update({
       where: { id: sender.id },
       data: {
         isVerified: true,
-        isAuthorized: pre ? pre.isAuthorized : true,
+        isAuthorized: true,
         allowedLedgers: pre ? pre.allowedLedgers : [],
         isDataApprover: pre ? pre.isDataApprover : false,
         otpCode: null,
         otpExpiresAt: null,
       },
     });
+    if (pre) {
+      await prisma.telegramSender
+        .deleteMany({
+          where: { email: sender.email, userId: ownerUserId, telegramUserId: null },
+        })
+        .catch(() => undefined);
+    }
     const updated = await prisma.telegramSender.findUnique({ where: { id: sender.id } });
     await sendTelegramMessage({
       botToken,
@@ -272,6 +281,16 @@ async function handleText(
   }
 
   if (text === "/start") {
+    const full = await prisma.telegramSender.findUnique({ where: { id: sender.id } });
+    if (full && isSenderAuthorized(full)) {
+      await sendTelegramMessage({
+        botToken,
+        chatId,
+        text: "📋 <b>Ledger ရွေးပါ —</b>",
+        replyMarkup: buildLedgerMenuButtons(full.allowedLedgers),
+      });
+      return;
+    }
     await sendTelegramMessage({
       botToken,
       chatId,

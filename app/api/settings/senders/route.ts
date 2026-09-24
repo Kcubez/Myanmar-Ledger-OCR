@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
           displayName: email,
           allowedLedgers: scopes,
           isDataApprover: body.isDataApprover ?? false,
-          isAuthorized: false,
+          isAuthorized: true,
           userId: guard.session.user.id,
         },
       });
