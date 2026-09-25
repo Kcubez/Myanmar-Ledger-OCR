@@ -38,7 +38,7 @@ export function isRetryableMessage(message: string): boolean {
 }
 
 /** Parse a comma-separated key env var into a trimmed, non-empty list. */
-export function parseKeyList(value: string | undefined): string[] {
+export function parseKeyList(value: string | undefined | null): string[] {
   return (value ?? "")
     .split(",")
     .map((key) => key.trim())
@@ -97,8 +97,9 @@ export type GeminiPart =
 /**
  * Run one Gemini JSON attempt per key in order.
  * - Continues to the next key only on retryable (quota/rate-limit/key) errors.
- * - Each attempt is bounded by timeoutMs (default 45s); a timeout counts as
- *   retryable so a hung key fails fast instead of stalling the photo pipeline.
+ * - Each attempt is bounded by timeoutMs (default 90s — reasoning models like
+ *   gemini-3.5-flash think 60s+ on hard handwriting). A timeout retries the
+ *   SAME key once (transient stalls are common), then rotates.
  * - Throws TerminalExtractError immediately for anything else.
  * - Throws RetryableExhaustedError when every key failed retryably.
  */
@@ -108,47 +109,57 @@ export async function extractWithKeyRotation<T>(options: {
   parts: GeminiPart[];
   maxOutputTokens?: number;
   timeoutMs?: number;
+  timeoutRetries?: number;
   parse: (text: string) => T;
 }): Promise<{ result: T; usedKey: UsedKey }> {
-  const timeoutMs = options.timeoutMs ?? 45_000;
+  const timeoutMs = options.timeoutMs ?? 90_000;
+  const timeoutRetries = options.timeoutRetries ?? 1;
   let retryableFailure = false;
   for (const [index, key] of options.keys.entries()) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: key });
-      const response = await withTimeout(
-        ai.models.generateContent({
-          model: options.model,
-          contents: [
-            {
-              role: "user",
-              parts: options.parts as { text?: string; inlineData?: { mimeType: string; data: string } }[],
+    let attempt = 0;
+    for (;;) {
+      attempt += 1;
+      try {
+        const ai = new GoogleGenAI({ apiKey: key });
+        const response = await withTimeout(
+          ai.models.generateContent({
+            model: options.model,
+            contents: [
+              {
+                role: "user",
+                parts: options.parts as { text?: string; inlineData?: { mimeType: string; data: string } }[],
+              },
+            ],
+            config: {
+              responseMimeType: "application/json",
+              temperature: 0,
+              ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
             },
-          ],
-          config: {
-            responseMimeType: "application/json",
-            temperature: 0,
-            ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-          },
-        }),
-        timeoutMs,
-      );
-      const result = options.parse(response.text ?? "{}");
-      return { result, usedKey: { slot: index + 1, masked: maskKey(key) } };
-    } catch (error) {
-      if (error instanceof TerminalExtractError) throw error;
-      if (error instanceof ExtractTimeoutError) {
-        console.error(`Gemini key slot ${index + 1} timed out after ${timeoutMs}ms; rotating.`);
-        retryableFailure = true;
-        continue;
-      }
+          }),
+          timeoutMs,
+        );
+        const result = options.parse(response.text ?? "{}");
+        return { result, usedKey: { slot: index + 1, masked: maskKey(key) } };
+      } catch (error) {
+        if (error instanceof TerminalExtractError) throw error;
+        if (error instanceof ExtractTimeoutError) {
+          if (attempt <= timeoutRetries) {
+            console.error(`Gemini key slot ${index + 1} timed out after ${timeoutMs}ms (attempt ${attempt}); retrying same key.`);
+            continue;
+          }
+          console.error(`Gemini key slot ${index + 1} timed out ${attempt}×; rotating.`);
+          retryableFailure = true;
+          break;
+        }
       const message = error instanceof Error ? error.message : "";
       if (isRetryableMessage(message)) {
         retryableFailure = true;
-        continue;
+        break; // next key — `continue` here would spin the inner retry loop forever
       }
       throw new TerminalExtractError("Could not extract this image. Please try another image.");
-    }
-  }
+      } // end catch
+    } // end per-key retry loop
+  } // end key rotation
   throw new RetryableExhaustedError(
     retryableFailure
       ? "Extraction is temporarily unavailable. Please try again later."

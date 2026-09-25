@@ -229,7 +229,7 @@ export function SettingsManager() {
               <input value={token} onChange={(e) => setTokenDraft(e.target.value)} placeholder="123456:ABC-..." autoComplete="off" />
             </label>
             <label className="muted">
-              Gemini API key
+              Gemini API key <small>(comma-separated for rotation: key1, key2)</small>
               <input value={key} onChange={(e) => setKeyDraft(e.target.value)} placeholder="AI…" autoComplete="off" />
             </label>
             <label className="muted">

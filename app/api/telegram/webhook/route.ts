@@ -24,7 +24,7 @@ import {
 } from "../../../../lib/telegram/senders";
 import { sendOTPEmail } from "../../../../lib/email";
 import { uploadImage, storagePath, stagingPath, moveImage, deleteImage, bucketPath } from "../../../../lib/supabase";
-import { dateKey, resolveReportDate } from "../../../../lib/report-date";
+import { dateKey, resolveReportDate, extractContentDate } from "../../../../lib/report-date";
 import {
   parseKeyList,
   extractWithKeyRotation,
@@ -122,9 +122,11 @@ async function resolveBotConfig(headerSecret: string | null): Promise<BotRuntime
       where: { webhookSecret: headerSecret, isActive: true },
     });
     if (settings?.botToken) {
+      // DB key field accepts comma-separated keys for rotation (same syntax as GEMINI_API_KEYS).
+      const dbKeys = parseKeyList(settings.geminiApiKey);
       return {
         botToken: settings.botToken,
-        keys: settings.geminiApiKey ? [settings.geminiApiKey] : parseKeyList(process.env.GEMINI_API_KEYS),
+        keys: dbKeys.length ? dbKeys : parseKeyList(process.env.GEMINI_API_KEYS),
         model: settings.geminiModel || FALLBACK_MODEL,
         ownerUserId: settings.userId,
         viaDb: true,
@@ -517,7 +519,7 @@ async function processPhoto(
     update: autoConfirm ? { status: "CONFIRMED" } : {},
   });
 
-  await persistLines(report.id, mode, extracted);
+  await persistLines(report.id, mode, extracted, reportDate);
   await prisma.sourceImage.create({
     data: {
       reportId: report.id,
@@ -647,7 +649,7 @@ async function extractByType(
 
 // ─── Persist lines: each type's photos REPLACE that type's lines for the date ─
 
-async function persistLines(reportId: string, mode: LedgerType, extracted: ExtractedPayload) {
+async function persistLines(reportId: string, mode: LedgerType, extracted: ExtractedPayload, reportDate: Date) {
   const big = (value: string): bigint => BigInt(Math.round(amountFrom(value)));
   switch (mode) {
     case "revenue": {
@@ -701,14 +703,22 @@ async function persistLines(reportId: string, mode: LedgerType, extracted: Extra
       const rows = extracted.lines as { date: string; vehicle: string; particular: string; in_gal: string; out_gal: string; balance_gal: string; balance_ok: boolean | null }[];
       await prisma.fuelEntry.deleteMany({ where: { reportId } });
       if (rows.length) {
+        // Ditto-fill: empty row dates inherit the nearest date above; the
+        // report date is the last resort (never leave null on fresh rows).
+        let carry: Date | null = null;
         await prisma.fuelEntry.createMany({
-          data: rows.map((row) => ({
-            reportId, vehicle: row.vehicle, particular: row.particular || null,
-            inGal: row.in_gal ? amountFrom(row.in_gal) : null,
-            outGal: row.out_gal ? amountFrom(row.out_gal) : null,
-            balanceGal: row.balance_gal ? amountFrom(row.balance_gal) : null,
-            balanceOk: row.balance_ok,
-          })),
+          data: rows.map((row) => {
+            const parsed = row.date ? extractContentDate(row.date) : null;
+            if (parsed) carry = parsed;
+            return {
+              reportId, vehicle: row.vehicle, particular: row.particular || null,
+              date: carry ?? reportDate,
+              inGal: row.in_gal ? amountFrom(row.in_gal) : null,
+              outGal: row.out_gal ? amountFrom(row.out_gal) : null,
+              balanceGal: row.balance_gal ? amountFrom(row.balance_gal) : null,
+              balanceOk: row.balance_ok,
+            };
+          }),
         });
       }
       const totalIn = rows.reduce((sum, row) => sum + (row.in_gal ? amountFrom(row.in_gal) : 0), 0);
@@ -717,16 +727,23 @@ async function persistLines(reportId: string, mode: LedgerType, extracted: Extra
       break;
     }
     case "brick": {
-      const rows = extracted.lines as { item: string; qty: string; unit_price: string; amount: string }[];
+      const rows = extracted.lines as { date: string; item: string; qty: string; unit_price: string; amount: string }[];
       await prisma.brickEntry.deleteMany({ where: { reportId } });
       if (rows.length) {
+        // Ditto-fill like fuel: empty row dates inherit the nearest date above.
+        let carry: Date | null = null;
         await prisma.brickEntry.createMany({
-          data: rows.map((row) => ({
-            reportId, item: row.item,
-            qty: row.qty ? amountFrom(row.qty) : null,
-            unitPrice: row.unit_price ? big(row.unit_price) : null,
-            amount: row.amount ? big(row.amount) : null,
-          })),
+          data: rows.map((row) => {
+            const parsed = row.date ? extractContentDate(row.date) : null;
+            if (parsed) carry = parsed;
+            return {
+              reportId, item: row.item,
+              date: carry ?? reportDate,
+              qty: row.qty ? amountFrom(row.qty) : null,
+              unitPrice: row.unit_price ? big(row.unit_price) : null,
+              amount: row.amount ? big(row.amount) : null,
+            };
+          }),
         });
       }
       break;

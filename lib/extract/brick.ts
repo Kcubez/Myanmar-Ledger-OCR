@@ -9,7 +9,7 @@ export type BrickData = {
   rawText: string;
   /** Content date as written on the page (e.g. "15/9/2026"), or empty. */
   date: string;
-  rows: { item: string; qty: string; unit_price: string; amount: string }[];
+  rows: { date: string; item: string; qty: string; unit_price: string; amount: string }[];
 };
 
 export type BrickParseResult = {
@@ -30,7 +30,8 @@ export function brickPrompt(): string {
     `Return ONLY valid JSON with this exact shape:\n` +
     `{"rawText":"all legible source text or empty string",` +
     `"date":"content date as written on the page (e.g. 15/9/2026) or empty string",` +
-    `"rows":[{"item":"item name as written or empty","qty":"quantity or empty",` +
+    `"rows":[{"date":"row date as written (ditto marks mean same date as the row above) or empty",` +
+    `"item":"item name as written or empty","qty":"quantity or empty",` +
     `"unit_price":"unit price or empty","amount":"line amount or empty"}]}\n` +
     `List each physical row ONCE — never repeat or split rows to inflate the count. ` +
     `Do not invent unclear values — use empty strings. Preserve source formats.`
@@ -51,12 +52,13 @@ export function parseBrickResponse(text: string): BrickParseResult {
   for (const entry of raw) {
     const row = (entry ?? {}) as Record<string, unknown>;
     const candidate = {
+      date: asText(row.date),
       item: asText(row.item),
       qty: asText(row.qty),
       unit_price: asText(row.unit_price),
       amount: asText(row.amount),
     };
-    const key = `${candidate.item}|${candidate.qty}|${candidate.unit_price}|${candidate.amount}`;
+    const key = `${candidate.date}|${candidate.item}|${candidate.qty}|${candidate.unit_price}|${candidate.amount}`;
     if (seen.has(key)) {
       duplicates += 1;
       continue;
@@ -86,6 +88,7 @@ export function parseBrickMessage(text: string): BrickParseResult {
       const match = trimmed.match(/^(.*?)\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*(.*?)\s*$/);
       if (match) {
         rows.push({
+          date: "",
           item: (match[1] ?? "").trim(),
           qty: (match[2] ?? "").trim(),
           unit_price: (match[3] ?? "").trim(),

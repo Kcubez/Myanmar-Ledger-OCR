@@ -31,7 +31,7 @@ export default async function FuelPage({
     }),
     prisma.fuelEntry.findMany({
       where: { report: { date: where } },
-      orderBy: { id: "desc" },
+      orderBy: { id: "asc" },
       take: 30,
       include: { report: { select: { date: true } } },
     }),
@@ -115,7 +115,7 @@ export default async function FuelPage({
               <tbody>
                 {mismatches.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.report.date.toISOString().slice(0, 10)}</td>
+                    <td>{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
                     <td>{row.vehicle}</td>
                     <td>{row.inGal?.toString() ?? "—"}</td>
                     <td>{row.outGal?.toString() ?? "—"}</td>
@@ -136,6 +136,7 @@ export default async function FuelPage({
               <tr>
                 <th>Date</th>
                 <th>Vehicle</th>
+                <th>Particular</th>
                 <th>In</th>
                 <th>Out</th>
                 <th>Balance</th>
@@ -145,8 +146,9 @@ export default async function FuelPage({
             <tbody>
               {recent.map((row) => (
                 <tr key={row.id}>
-                  <td>{row.report.date.toISOString().slice(0, 10)}</td>
-                  <td>{row.vehicle}</td>
+                  <td>{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
+                  <td>{row.vehicle || "—"}</td>
+                  <td>{row.particular || "—"}</td>
                   <td>{row.inGal?.toString() ?? "—"}</td>
                   <td>{row.outGal?.toString() ?? "—"}</td>
                   <td>{row.balanceGal?.toString() ?? "—"}</td>

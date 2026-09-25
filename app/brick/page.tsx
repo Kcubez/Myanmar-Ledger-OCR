@@ -31,7 +31,7 @@ export default async function BrickPage({
     }),
     prisma.brickEntry.findMany({
       where: { report: { date: where } },
-      orderBy: { id: "desc" },
+      orderBy: { id: "asc" },
       take: 30,
       include: { report: { select: { date: true } } },
     }),
@@ -100,7 +100,7 @@ export default async function BrickPage({
                   <tr key={row.id}>
                     <td>
                       <a href={`/reports/${row.report.date.toISOString().slice(0, 10)}`}>
-                        {row.report.date.toISOString().slice(0, 10)}
+                        {(row.date ?? row.report.date).toISOString().slice(0, 10)}
                       </a>
                     </td>
                     <td>{row.item}</td>
@@ -130,7 +130,7 @@ export default async function BrickPage({
             <tbody>
               {recent.map((row) => (
                 <tr key={row.id}>
-                  <td>{row.report.date.toISOString().slice(0, 10)}</td>
+                  <td>{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
                   <td>{row.item}</td>
                   <td>{row.qty?.toString() ?? "—"}</td>
                   <td>{row.unitPrice?.toString() ?? "—"}</td>

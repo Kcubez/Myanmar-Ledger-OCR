@@ -14,7 +14,7 @@
 | `DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `GEMINI_API_KEYS`, `BETTER_AUTH_SECRET`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL` | `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_APP_NAME` only |
 
 ## Contracts
-- Webhook: must return 200 quickly; verify `x-telegram-bot-api-secret-token`; 1 photo = 1 Gemini call (~5–15 s).
+- Webhook: must return 200 quickly; verify `x-telegram-bot-api-secret-token`; 1 photo = 1+ Gemini calls (reasoning model, 90 s/key timeout + 1 same-key retry, then rotation).
 - DB invariants: `DailyReport.date @unique` (1 report/day; 4–6 photos merge into it); totals denormalized, recalc on confirm/edit; money `BigInt` (serialize!), gallons `Decimal`; `TelegramMessage @@unique([chatId, messageId])`.
 - Auth gates: unlinked → `/link` only; wrong mode → deny, no Gemini call; PUBLIC paths: `/login /admin/login /api/auth /setup /api/setup /api/telegram/*`.
 - Keys: browser gets masked `••••last4` only; rotate via env.
