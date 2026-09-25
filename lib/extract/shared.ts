@@ -31,7 +31,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 const RETRYABLE =
-  /429|resource_exhausted|quota|rate.?limit|api key.*(invalid|disabled|expired)|permission denied/i;
+  /429|resource_exhausted|quota|rate.?limit|api key.*(invalid|not valid|disabled|expired)|permission denied|fetch failed|network|ECONNRESET|ECONNREFUSED|ETIMEDOUT|socket hang up|timed? ?out|50\d|internal error|overloaded|unavailable|bad gateway|gateway timeout|service unavailable/i;
 
 export function isRetryableMessage(message: string): boolean {
   return RETRYABLE.test(message);

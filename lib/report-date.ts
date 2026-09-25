@@ -3,10 +3,12 @@
  * written in the ledger header); the upload date is fallback only.
  * Running fuel/brick pages therefore merge into the right daily report.
  */
+import { normalizeDigits } from "./extract/shared";
 
 /** Extract a calendar date from free-form source text. Returns null if none. */
 export function extractContentDate(text: string): Date | null {
-  const cleaned = text.replace(/\(.*?\)/g, " ");
+  // Normalize Myanmar digits ၀-၉ first — handwritten headers often use them.
+  const cleaned = normalizeDigits(text).replace(/\(.*?\)/g, " ");
   const patterns = [
     /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/,
     /(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/,

@@ -29,7 +29,8 @@ export function fuelPrompt(): string {
     `{"rows":[{"date":"source date or empty","vehicle":"vehicle id like Loader, 5K, 10', 2A or empty",` +
     `"particular":"particular text or empty","in_gal":"gallons in or empty","out_gal":"gallons out or empty",` +
     `"balance_gal":"running balance or empty"}]}\n` +
-    `Preserve source formats (e.g. "5 gal"). Do not invent unclear values.`
+    `Preserve source formats (e.g. "5 gal"). Do not invent unclear values. ` +
+    `Preserve Myanmar script verbatim — never transliterate.`
   );
 }
 

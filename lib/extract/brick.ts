@@ -34,7 +34,8 @@ export function brickPrompt(): string {
     `"item":"item name as written or empty","qty":"quantity or empty",` +
     `"unit_price":"unit price or empty","amount":"line amount or empty"}]}\n` +
     `List each physical row ONCE — never repeat or split rows to inflate the count. ` +
-    `Do not invent unclear values — use empty strings. Preserve source formats.`
+    `Do not invent unclear values — use empty strings. Preserve source formats. ` +
+    `Preserve Myanmar script verbatim — never transliterate.`
   );
 }
 

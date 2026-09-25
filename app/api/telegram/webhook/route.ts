@@ -641,6 +641,10 @@ async function extractByType(
         return { terminal: true };
     }
   } catch (error) {
+    // Log the underlying cause — Vercel function logs are the only way to
+    // tell a deterministic failure (bad image/model) from a transient one.
+    const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    console.error(`extractByType[${mode}] failed:`, detail);
     if (error instanceof TerminalExtractError) return { terminal: true };
     if (error instanceof RetryableExhaustedError) return null;
     return { terminal: true };

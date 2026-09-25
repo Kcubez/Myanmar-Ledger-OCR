@@ -1,4 +1,4 @@
-import { asText } from "./shared";
+import { amountFrom, asText } from "./shared";
 
 /**
  * Expense (OPEX) ledger: drawings + operation + daily wages breakdown.
@@ -35,7 +35,8 @@ export function expensePrompt(): string {
     `{"date":"report date or empty string","total":"total expense in source format or empty string",` +
     `"business_drawing":"amount or empty","personal_drawing":"amount or empty","operation":"operation expense or empty",` +
     `"wages":[{"name":"driver/worker name or vehicle id","role":"role or empty","amount":"amount or empty"}]}\n` +
-    `Do not invent unclear values — use empty strings. Preserve source amount formats.`
+    `Do not invent unclear values — use empty strings. Preserve source amount formats. ` +
+    `Preserve Myanmar script verbatim — never transliterate.`
   );
 }
 
@@ -64,6 +65,14 @@ export function parseExpenseResponse(text: string): ExpenseParseResult {
   if (!data.total) unreadable.push("total");
   if (!data.business_drawing) unreadable.push("business_drawing");
   if (!data.personal_drawing) unreadable.push("personal_drawing");
+  // Sum check — flag only, never auto-correct (revenue parity).
+  const total = amountFrom(data.total);
+  const parts =
+    amountFrom(data.business_drawing) +
+    amountFrom(data.personal_drawing) +
+    amountFrom(data.operation) +
+    wages.reduce((sum, wage) => sum + amountFrom(wage.amount), 0);
+  if (data.total && total !== parts) unreadable.push("sum_mismatch");
   const confidence = !data.total && wages.length === 0 ? 0.2 : unreadable.length <= 2 ? 0.85 : 0.55;
   return { data, confidence, unreadable_fields: unreadable };
 }

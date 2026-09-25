@@ -22,7 +22,8 @@ export function maintenancePrompt(): string {
     `Extract the maintenance table from this ledger photo. Return ONLY valid JSON with this exact shape:\n` +
     `{"date":"report date or empty string",` +
     `"lines":[{"vehicle":"vehicle/ship id or empty","amount":"amount or empty","part":"part name or empty","vendor":"vendor/shop or empty"}]}\n` +
-    `Do not invent unclear values — use empty strings. Preserve source formats.`
+    `Do not invent unclear values — use empty strings. Preserve source formats. ` +
+    `Preserve Myanmar script verbatim — never transliterate.`
   );
 }
 

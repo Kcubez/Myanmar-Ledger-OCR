@@ -28,7 +28,8 @@ export function revenuePrompt(): string {
     `{"date":"report date or empty string","total":"total revenue in source format or empty string",` +
     `"cash":"amount or empty","kbz_pay":"amount or empty","mmqr":"amount or empty",` +
     `"kbz_special":"amount or empty","aya_special":"amount or empty"}\n` +
-    `Do not invent unclear values — use empty strings. Preserve source amount formats.`
+    `Do not invent unclear values — use empty strings. Preserve source amount formats. ` +
+    `Preserve Myanmar script verbatim — never transliterate.`
   );
 }
 
