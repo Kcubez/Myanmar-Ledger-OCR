@@ -42,7 +42,7 @@ No web upload, no multi-client/SaaS billing, no xlsx bulk import, no QA chatbot,
 
 ## 7. Constraints (free tier, client-sale)
 - Supabase Free: 500 MB DB, 1 GB Storage, 5 GB egress/mo, 7-day inactivity pause, no backups. Vercel Hobby: 60 s function cap, 100 GB bandwidth, **non-commercial only → client production needs Pro**.
-- Storage math: 4–6 photos/day (2 daily-summary pages + fuel page + brick page + occasional calculation summary) × ~0.6 MB (compressed 1920px + thumb, originals deleted) ≈ 2.5–4 MB/day → 1 GB ≈ 8–13 mo. Retention: 6-month original-purge written into contract; DB rows kept.
+- Storage math (thumbnails-only policy): 4–6 photos/day × ~7 KB (400px/q60 thumb; 1920px main lives in memory as Gemini payload then discarded) ≈ 15 MB/yr → 1 GB quota ≈ 60+ yr. DB rows kept; legacy full-size rows remain as fallback.
 - Telegram `file_id` is short-lived (redownload window only), not archival. Supabase Storage is source of truth.
 - Money stored as kyat integer (`BigInt`); gallons `Decimal(10,2)`; Myanmar digits normalized before parse.
 
@@ -55,7 +55,7 @@ No web upload, no multi-client/SaaS billing, no xlsx bulk import, no QA chatbot,
 - [ ] 1 report/day (4–6 photos merge into the same date's report) enforced at DB (`date @unique`); bot accepts multiple photos per day.
 - [ ] `reportDate` comes from the photo's content date (e.g. 21/9/2026 header), NOT the upload date; running-log pages (fuel/brick) merge into that date's report, upload date used only as fallback.
 - [ ] No full API keys leak to browser (masked `••••last4` only); webhook secret verified.
-- [ ] Image pipeline stores compressed + thumb only; original Telegram file discarded.
+- [ ] Image pipeline stores 400px/q60 thumb only; 1920px main + original Telegram file discarded.
 
 ## 9. Open items (locked unless stated)
 - Prisma 7 + `@prisma/adapter-pg` baseline (BAI stack). Brevo sender email required for OTP. Singapore region recommended.

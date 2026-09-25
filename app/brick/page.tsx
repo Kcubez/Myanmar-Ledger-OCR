@@ -1,33 +1,41 @@
 import { ownerPageOrRedirect } from "../../lib/owner-page";
 import { prisma } from "../../lib/prisma";
+import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
 import { AppShell, PageHeader, StatCard } from "../../components/layout";
+import { DateFilter } from "../../components/DateFilter";
+import { DeleteRangeButton } from "../../components/DeleteRangeButton";
 import { BarChart } from "../../components/charts";
 
 export const dynamic = "force-dynamic";
 
-export default async function BrickPage() {
+export default async function BrickPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await ownerPageOrRedirect();
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - 30);
+  const range = parseDateFilter(await searchParams);
+  const where = rangeWhere(range);
 
-  const [byItem, lowConfidence, recent] = await Promise.all([
+  const [byItem, lowConfidence, recent, entryCount] = await Promise.all([
     prisma.brickEntry.groupBy({
       by: ["item"],
-      where: { report: { date: { gte: since } } },
+      where: { report: { date: where } },
       _sum: { amount: true, qty: true },
     }),
     prisma.brickEntry.findMany({
-      where: { report: { date: { gte: since } }, OR: [{ confidence: { lt: 0.5 } }, { confidence: null }] },
+      where: { report: { date: where }, OR: [{ confidence: { lt: 0.5 } }, { confidence: null }] },
       orderBy: { id: "desc" },
       take: 20,
       include: { report: { select: { date: true } } },
     }),
     prisma.brickEntry.findMany({
-      where: { report: { date: { gte: since } } },
+      where: { report: { date: where } },
       orderBy: { id: "desc" },
       take: 30,
       include: { report: { select: { date: true } } },
     }),
+    prisma.brickEntry.count({ where: { report: { date: where } } }),
   ]);
 
   const totalAmount = byItem.reduce((s, row) => s + Number(row._sum.amount ?? 0), 0);
@@ -35,7 +43,24 @@ export default async function BrickPage() {
 
   return (
     <AppShell>
-      <PageHeader eyebrow="LEDGER DASHBOARD" title="Brick" sub="Last 30 days · quantity & amount by item" />
+      <PageHeader
+        eyebrow="LEDGER DASHBOARD"
+        title="Brick"
+        sub={`${range.label} · quantity & amount by item`}
+        actions={
+          <>
+            <DateFilter />
+            <DeleteRangeButton
+              kind="brick"
+              kindLabel="brick"
+              count={entryCount}
+              scopeLabel={range.label}
+              gte={range.gte?.toISOString() ?? null}
+              lte={range.lte?.toISOString() ?? null}
+            />
+          </>
+        }
+      />
 
       <section className="stats" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }} aria-label="Brick totals">
         <StatCard label="Total amount" value={`${Math.round(totalAmount).toLocaleString()} Ks`} tone="good" />

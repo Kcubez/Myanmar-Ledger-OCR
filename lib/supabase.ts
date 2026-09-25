@@ -53,6 +53,60 @@ export function storagePath(dateKey: string, ledgerType: string, messageId: numb
   return `reports/${dateKey}/${ledgerType}-${messageId}${thumb ? ".thumb" : ""}.jpg`;
 }
 
+/** Staging path used to upload a photo BEFORE extraction finishes. */
+export function stagingPath(chatId: string, ledgerType: string, messageId: number, thumb = false): string {
+  return `reports/incoming/${ledgerType}-${chatId}-${messageId}${thumb ? ".thumb" : ""}.jpg`;
+}
+
+/** Bucket-qualified path as stored in the DB (e.g. "ledger-images/reports/..."). */
+export function bucketPath(path: string): string {
+  return `${BUCKET}/${path}`;
+}
+
+/** Server-side move inside the bucket; returns true on success. */
+export async function moveImage(fromPath: string, toPath: string): Promise<boolean> {
+  const cfg = config();
+  if (!cfg) return false;
+  try {
+    const response = await fetch(`${cfg.url}/storage/v1/object/move`, {
+      method: "POST",
+      headers: {
+        apikey: cfg.serviceKey,
+        Authorization: `Bearer ${cfg.serviceKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ bucket: BUCKET, sourceKey: fromPath, destinationKey: toPath }),
+    });
+    if (!response.ok) {
+      console.error("Supabase storage move failed:", response.status, await response.text());
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Supabase storage move error:", error);
+    return false;
+  }
+}
+
+/** Best-effort delete (staging cleanup); returns true on success. */
+export async function deleteImage(path: string): Promise<boolean> {
+  const cfg = config();
+  if (!cfg) return false;
+  try {
+    const response = await fetch(`${cfg.url}/storage/v1/object/${BUCKET}/${path}`, {
+      method: "DELETE",
+      headers: {
+        apikey: cfg.serviceKey,
+        Authorization: `Bearer ${cfg.serviceKey}`,
+      },
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Supabase storage delete error:", error);
+    return false;
+  }
+}
+
 /** Create a time-limited signed URL for a private-bucket object. */
 export async function signImage(bucketPath: string, expiresIn = 3600): Promise<string | null> {
   const cfg = config();

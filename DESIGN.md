@@ -1,5 +1,10 @@
 # Myanmar Ledger OCR — Design
 
+> **SUPERSEDED** — this doc describes the original browser-only prototype
+> (IndexedDB, single web upload, no login). The shipped system is
+> Telegram-fed with Supabase + dashboard — see `PRD.md` / `ARCHITECTURE.md`.
+> Kept for history only; do not implement from this file.
+
 ## Purpose
 
 Build a Next.js test web app that extracts Myanmar handwritten revenue and expense ledger entries from a single uploaded image using Gemini, lets users review and edit the result, and saves it only in the current browser.

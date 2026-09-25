@@ -1,31 +1,37 @@
 import { ownerPageOrRedirect } from "../../lib/owner-page";
 import Link from "next/link";
 import { prisma } from "../../lib/prisma";
+import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
 import { AppShell, PageHeader, StatCard, StatusPill } from "../../components/layout";
+import { DateFilter } from "../../components/DateFilter";
 import { TrendChart, DonutChart, BarChart } from "../../components/charts";
 
 export const dynamic = "force-dynamic";
 
 const dayLabel = (d: Date) => `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await ownerPageOrRedirect();
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - 30);
+  const range = parseDateFilter(await searchParams);
+  const where = rangeWhere(range);
 
   const [reports, revenueAgg, expenseAgg, pendingCount] = await Promise.all([
     prisma.dailyReport.findMany({
-      where: { date: { gte: since } },
+      where: { date: where },
       orderBy: { date: "asc" },
     }),
     prisma.revenueLine.groupBy({
       by: ["method"],
-      where: { report: { date: { gte: since } } },
+      where: { report: { date: where } },
       _sum: { amount: true },
     }),
     prisma.expenseLine.groupBy({
       by: ["category"],
-      where: { report: { date: { gte: since } } },
+      where: { report: { date: where } },
       _sum: { amount: true },
     }),
     prisma.dailyReport.count({ where: { status: { in: ["PENDING", "NEEDS_REVIEW"] } } }),
@@ -48,19 +54,22 @@ export default async function DashboardPage() {
       <PageHeader
         eyebrow="LEDGER DASHBOARD"
         title="Overview"
-        sub="Last 30 days · Telegram-fed reports"
+        sub={`${range.label} · Telegram-fed reports`}
         actions={
-          pendingCount > 0 ? (
-            <Link href="/approvals">
-              <button type="button">Review {pendingCount} pending</button>
-            </Link>
-          ) : undefined
+          <>
+            <DateFilter />
+            {pendingCount > 0 && (
+              <Link href="/approvals">
+                <button type="button">Review {pendingCount} pending</button>
+              </Link>
+            )}
+          </>
         }
       />
 
       <section className="stats" aria-label="Key totals">
-        <StatCard label="Revenue" value={`${totalRevenue.toLocaleString()}`} sub="Ks · 30 days" tone="good" />
-        <StatCard label="Expense" value={`${totalExpense.toLocaleString()}`} sub="Ks · 30 days" tone="bad" />
+        <StatCard label="Revenue" value={`${totalRevenue.toLocaleString()}`} sub={`Ks · ${range.label}`} tone="good" />
+        <StatCard label="Expense" value={`${totalExpense.toLocaleString()}`} sub={`Ks · ${range.label}`} tone="bad" />
         <StatCard
           label="Net"
           value={`${net.toLocaleString()}`}

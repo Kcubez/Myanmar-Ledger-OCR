@@ -2,7 +2,7 @@
 
 ## Flow (10 lines)
 1. Telegram photo → `POST /api/telegram/webhook` (secret header + auth gate, 200 fast, work in `after()`).
-2. Largest photo → sharp 1920px/q75 + 400px thumb → Supabase Storage; original discarded.
+2. Largest photo → sharp 1920px/q75 (Gemini payload, in-memory only) + 400px/q60 thumb → Supabase Storage (thumbnails-only); original discarded.
 3. `lib/extract/<type>` — Gemini first, heuristic fallback, never throws, never invents.
 4. Upsert `DailyReport` for the content date (photo header, not upload date) + lines + `SourceImage` + `TelegramMessage(chatId,messageId)`. 4–6 photos/day merge into 1 report.
 5. Approvers preview + Confirm/Reject; others notified; submitter notified.
@@ -20,7 +20,7 @@
 - Keys: browser gets masked `••••last4` only; rotate via env.
 
 ## Free-tier limits
-Supabase: 500 MB DB · 1 GB Storage · 5 GB egress · 7-day pause · no backups. Vercel Hobby: 60 s fn cap · non-commercial (client prod → Pro). ~2.5–4 MB/day at 4–6 photos/day → 1 GB ≈ 8–13 mo. `telegram file_id` is temporary.
+Supabase: 500 MB DB · 1 GB Storage · 5 GB egress · 7-day pause · no backups. Vercel Hobby: 60 s fn cap · non-commercial (client prod → Pro). Thumbnails-only (~7 KB/photo) ≈ 15 MB/yr — storage cost ~zero. `telegram file_id` is temporary. Free-plan 50 MB cap is per-file, not total.
 
 ## Incident fixes
 | Symptom | Fix |

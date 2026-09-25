@@ -23,7 +23,7 @@ Single-client ledger system: Telegram-only input, dashboard-only web. Ledger typ
 ## Data rules
 - `DailyReport.date` is `@unique` (1 report/day; 4–6 photos merge into it — never a 1-photo cap). `reportDate` comes from the photo content date, upload date is fallback only. Totals are denormalized — recalc on confirm AND on dashboard edit.
 - `TelegramMessage @@unique([chatId, messageId])` — keep dedupe. `telegram file_id` is transient; Storage paths are truth.
-- Images: compressed 1920px/q75 + 400px thumb only. No originals, no blob-in-DB.
+- Images: thumbnails-only policy (cost) — 400px/q60 thumb (~7KB) to Storage, 1920px/q75 main lives in memory as Gemini payload then discarded. No originals, no blob-in-DB. `SourceImage.storagePath` null for new rows (legacy rows keep it as fallback).
 
 ## Verification gates (run before every PR)
 `npm run lint` · `npx tsc --noEmit` · webhook smoke (link→OTP→submit→approve with stubbed Gemini) · extract fixtures per ledger type (including sum/balance mismatch cases) · `npx prisma validate`.

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { LEDGER_TYPES } from "../lib/extract";
+import { Modal } from "./Modal";
 
 type BotSettings = {
   botToken: string;
@@ -43,6 +44,7 @@ export function SettingsManager() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState<Sender | null>(null);
 
   async function fetchState() {
     const [botRes, sendersRes] = await Promise.all([fetch("/api/settings/bot"), fetch("/api/senders")]);
@@ -166,6 +168,24 @@ export function SettingsManager() {
     await load();
   }
 
+  async function deleteSender(id: string) {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/senders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!response.ok) throw new Error("Sender delete failed.");
+      setDeleting(null);
+      await load();
+    } catch {
+      setError("Sender delete failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
   const toggleScope = (scope: string) =>
     setPreScopes((scopes) => (scopes.includes(scope) ? scopes.filter((s: string) => s !== scope) : [...scopes, scope]));
 
@@ -302,6 +322,14 @@ export function SettingsManager() {
                         >
                           {sender.isDataApprover ? "Unapprover" : "Approver"}
                         </button>
+                        <button
+                          type="button"
+                          className="secondary"
+                          style={{ padding: "4px 10px", marginLeft: 6, color: "#b3261e" }}
+                          onClick={() => setDeleting(sender)}
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -311,6 +339,20 @@ export function SettingsManager() {
           </section>
         </>
       )}
+      <Modal
+        open={deleting !== null}
+        title={`Remove sender ${deleting?.displayName ?? ""}?`}
+        body="They will need to /link again."
+        confirmLabel="Delete"
+        danger
+        busy={busy}
+        onConfirm={() => {
+          if (deleting) void deleteSender(deleting.id);
+        }}
+        onCancel={() => {
+          if (!busy) setDeleting(null);
+        }}
+      />
     </div>
   );
 }

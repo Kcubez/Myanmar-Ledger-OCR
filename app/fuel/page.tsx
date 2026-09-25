@@ -1,33 +1,41 @@
 import { ownerPageOrRedirect } from "../../lib/owner-page";
 import { prisma } from "../../lib/prisma";
+import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
 import { AppShell, PageHeader, StatCard } from "../../components/layout";
+import { DateFilter } from "../../components/DateFilter";
+import { DeleteRangeButton } from "../../components/DeleteRangeButton";
 import { BarChart } from "../../components/charts";
 
 export const dynamic = "force-dynamic";
 
-export default async function FuelPage() {
+export default async function FuelPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await ownerPageOrRedirect();
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - 30);
+  const range = parseDateFilter(await searchParams);
+  const where = rangeWhere(range);
 
-  const [byVehicle, mismatches, recent] = await Promise.all([
+  const [byVehicle, mismatches, recent, entryCount] = await Promise.all([
     prisma.fuelEntry.groupBy({
       by: ["vehicle"],
-      where: { report: { date: { gte: since } } },
+      where: { report: { date: where } },
       _sum: { inGal: true, outGal: true },
     }),
     prisma.fuelEntry.findMany({
-      where: { balanceOk: false, report: { date: { gte: since } } },
+      where: { balanceOk: false, report: { date: where } },
       orderBy: { id: "desc" },
       take: 20,
       include: { report: { select: { date: true } } },
     }),
     prisma.fuelEntry.findMany({
-      where: { report: { date: { gte: since } } },
+      where: { report: { date: where } },
       orderBy: { id: "desc" },
       take: 30,
       include: { report: { select: { date: true } } },
     }),
+    prisma.fuelEntry.count({ where: { report: { date: where } } }),
   ]);
 
   const totalIn = byVehicle.reduce((s, row) => s + Number(row._sum.inGal ?? 0), 0);
@@ -35,7 +43,24 @@ export default async function FuelPage() {
 
   return (
     <AppShell>
-      <PageHeader eyebrow="LEDGER DASHBOARD" title="Fuel" sub="Last 30 days · gallons in/out per vehicle" />
+      <PageHeader
+        eyebrow="LEDGER DASHBOARD"
+        title="Fuel"
+        sub={`${range.label} · gallons in/out per vehicle`}
+        actions={
+          <>
+            <DateFilter />
+            <DeleteRangeButton
+              kind="fuel"
+              kindLabel="fuel"
+              count={entryCount}
+              scopeLabel={range.label}
+              gte={range.gte?.toISOString() ?? null}
+              lte={range.lte?.toISOString() ?? null}
+            />
+          </>
+        }
+      />
 
       <section className="stats" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }} aria-label="Fuel totals">
         <StatCard label="Total in" value={`${Math.round(totalIn).toLocaleString()} gal`} tone="good" />

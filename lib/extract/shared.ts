@@ -10,6 +10,25 @@ export type UsedKey = { slot: number; masked: string };
 
 export class TerminalExtractError extends Error {}
 export class RetryableExhaustedError extends Error {}
+export class ExtractTimeoutError extends Error {}
+
+/** Race a promise against a timeout; the loser is discarded. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return new Promise<T>((resolve, reject) => {
+    timer = setTimeout(() => reject(new ExtractTimeoutError(`Gemini timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 const RETRYABLE =
   /429|resource_exhausted|quota|rate.?limit|api key.*(invalid|disabled|expired)|permission denied/i;
@@ -78,6 +97,8 @@ export type GeminiPart =
 /**
  * Run one Gemini JSON attempt per key in order.
  * - Continues to the next key only on retryable (quota/rate-limit/key) errors.
+ * - Each attempt is bounded by timeoutMs (default 45s); a timeout counts as
+ *   retryable so a hung key fails fast instead of stalling the photo pipeline.
  * - Throws TerminalExtractError immediately for anything else.
  * - Throws RetryableExhaustedError when every key failed retryably.
  */
@@ -86,30 +107,40 @@ export async function extractWithKeyRotation<T>(options: {
   model: string;
   parts: GeminiPart[];
   maxOutputTokens?: number;
+  timeoutMs?: number;
   parse: (text: string) => T;
 }): Promise<{ result: T; usedKey: UsedKey }> {
+  const timeoutMs = options.timeoutMs ?? 45_000;
   let retryableFailure = false;
   for (const [index, key] of options.keys.entries()) {
     try {
       const ai = new GoogleGenAI({ apiKey: key });
-      const response = await ai.models.generateContent({
-        model: options.model,
-        contents: [
-          {
-            role: "user",
-            parts: options.parts as { text?: string; inlineData?: { mimeType: string; data: string } }[],
+      const response = await withTimeout(
+        ai.models.generateContent({
+          model: options.model,
+          contents: [
+            {
+              role: "user",
+              parts: options.parts as { text?: string; inlineData?: { mimeType: string; data: string } }[],
+            },
+          ],
+          config: {
+            responseMimeType: "application/json",
+            temperature: 0,
+            ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
           },
-        ],
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0,
-          ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-        },
-      });
+        }),
+        timeoutMs,
+      );
       const result = options.parse(response.text ?? "{}");
       return { result, usedKey: { slot: index + 1, masked: maskKey(key) } };
     } catch (error) {
       if (error instanceof TerminalExtractError) throw error;
+      if (error instanceof ExtractTimeoutError) {
+        console.error(`Gemini key slot ${index + 1} timed out after ${timeoutMs}ms; rotating.`);
+        retryableFailure = true;
+        continue;
+      }
       const message = error instanceof Error ? error.message : "";
       if (isRetryableMessage(message)) {
         retryableFailure = true;

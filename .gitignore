@@ -4,3 +4,7 @@ node_modules
 !.env.local.example
 *.tsbuildinfo
 /generated
+
+data-files/*
+.DS_Store
+

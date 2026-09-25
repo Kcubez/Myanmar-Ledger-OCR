@@ -29,7 +29,13 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ d
   const images = await Promise.all(
     report.images.map(async (image) => ({
       ledgerType: image.ledgerType,
-      url: image.storagePath ? await signImage(image.storagePath) : null,
+      // Thumbnails-only policy: new rows carry thumbnailPath; storagePath is
+      // the legacy full-size fallback for rows saved before the cutover.
+      url: image.thumbnailPath
+        ? await signImage(image.thumbnailPath)
+        : image.storagePath
+          ? await signImage(image.storagePath)
+          : null,
       rawText: image.rawText,
     })),
   );

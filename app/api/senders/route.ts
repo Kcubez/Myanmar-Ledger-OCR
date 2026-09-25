@@ -65,3 +65,22 @@ export async function PATCH(req: NextRequest) {
     sender: { ...sender, telegramUserId: sender.telegramUserId ? sender.telegramUserId.toString() : null },
   });
 }
+
+// DELETE /api/senders — permanently remove a sender (own senders only).
+// Body: { id }. A deleted person who messages the bot again gets a fresh
+// unverified row and must /link + OTP again.
+export async function DELETE(req: NextRequest) {
+  const guard = await requireOwner(req);
+  if (guard.error) return guard.error;
+
+  const body = (await req.json().catch(() => ({}))) as { id?: string };
+  if (!body.id) return NextResponse.json({ message: "Missing id" }, { status: 400 });
+
+  const existing = await prisma.telegramSender.findFirst({
+    where: { id: body.id, userId: guard.session.user.id },
+  });
+  if (!existing) return NextResponse.json({ message: "Not found." }, { status: 404 });
+
+  await prisma.telegramSender.delete({ where: { id: body.id } });
+  return NextResponse.json({ ok: true });
+}

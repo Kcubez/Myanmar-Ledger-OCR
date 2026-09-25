@@ -2,8 +2,7 @@
 
 ## Repo map
 - `PRD.md` — requirements + acceptance. `ARCHITECTURE.md` — full design. `ARCHITECTURE-ESSENTIALS.md` — runtime cheat sheet. `AGENTS.md` — working agreement (read it before editing).
-- Code: `app/api/telegram/webhook/` (bot ingress) · `lib/extract/<revenue|expense|maintenance|fuel|brick>.ts` (parsers) · `src/lib/telegram/` (client/templates/senders) · `app/(dashboard)` (overview/fuel/brick/reports/approvals/admin) · `prisma/schema.prisma`.
-- Legacy being removed: `components/LedgerWorkspace.tsx` upload section, `lib/storage.ts` IndexedDB, `app/api/extract/route.ts` (folds into `lib/extract/`).
+- Code: `app/api/telegram/webhook/` (bot ingress) · `lib/extract/<revenue|expense|maintenance|fuel|brick>.ts` (parsers) · `lib/telegram/` (client/templates/senders) · `app/dashboard|fuel|brick|reports|approvals|settings|admin` pages · `components/DateFilter|DeleteRangeButton|Modal` (reusable UI) · `prisma/schema.prisma`.
 - BAI reference (`../business-ai-integration-service`): canonical Telegram/auth/chart patterns — copy semantics, don't diverge.
 
 ## Commands
@@ -19,7 +18,7 @@
 - Add a ledger field: update parser schema + heuristic + Prisma model + migration + dashboard form + fixture (match + mismatch case).
 - Add a chart: extend SVG chart pattern, feed from TanStack Query hook, no new deps.
 - Onboard staff: admin pre-registration → staff `/link` → verify in `/api/senders`.
-- Rotate key: env update + redeploy (DB-backed `BotSettings` is Phase 2, not MVP).
+- Rotate key: update `BotSettings` via `/settings` (or env + redeploy for fallback).
 
 ## Pitfalls
 - BigInt amounts crash JSON — serialize at API boundary. Myanmar digits must be normalized pre-parse. `telegram file_id` expires — Storage is truth. Webhook must 200 fast (`after()` for heavy work) or Telegram retries. Supabase Free pauses after 7 idle days; Hobby is non-commercial and 60 s-capped.

@@ -5,9 +5,9 @@
 ```
 Staff Telegram ──photo/caption──▶ Vercel POST /api/telegram/webhook
       │ verify x-telegram-bot-api-secret-token, checkAuthorization, 200 fast
-      │ heavy work in after(): download → sharp → Storage → Gemini → Prisma
+      │ heavy work in after(): download → sharp → staging-thumb-upload ∥ Gemini → move thumb → Prisma
       ▼
-Supabase Postgres (Prisma 7) + Storage (reports/<date>/<type>.jpg + thumb)
+Supabase Postgres (Prisma 7) + Storage (thumbnails-only: reports/&lt;date&gt;/&lt;type&gt;-&lt;msgId&gt;.thumb.jpg)
       │
 Owner web (Next.js 16 App Router, Better Auth) ──▶ dashboard + approvals queue
 ```
@@ -22,7 +22,7 @@ Single Vercel project + single Supabase project. Web upload removed; web is dash
 ### 2.2 Submit → extract → approve
 1. Photo arrives → `getFileInfoFromMessage` (largest photo) → `checkAuthorization(sender)` → deny + stop if fail (no Gemini call).
 2. Mode check: `allowedLedgers.includes(activeReportType)` else `sendNoPermissionPrompt`.
-3. Immediate ack message; `after()` continues: `downloadTelegramFile` → size check → sharp (1920px longest, JPEG q75, EXIF strip; 400px/q60 thumb) → Storage upload → `lib/extract/<type>` (Gemini primary, heuristic fallback) → `DailyReport` upsert for the **content date** (extracted from the photo header, e.g. 21/9/2026; upload date only as fallback — running fuel/brick pages merge into that date) + lines + `SourceImage` + `TelegramMessage(chatId,messageId,unique)`. Multiple photos/day merge into one report; `date @unique` is the merge key, not a 1-photo limit.
+3. Immediate ack message; `after()` continues: `downloadTelegramFile` → size check → sharp (1920px longest, JPEG q75 — Gemini payload, in-memory only; 400px/q60 thumb) → staging thumb upload ∥ `lib/extract/<type>` (Gemini primary with 45 s/key timeout, heuristic fallback) → move thumb to date folder → `DailyReport` upsert for the **content date** (extracted from the photo header, e.g. 21/9/2026; upload date only as fallback — running fuel/brick pages merge into that date) + lines + `SourceImage` (`storagePath` null, thumb only) + `TelegramMessage(chatId,messageId,unique)`. Multiple photos/day merge into one report; `date @unique` is the merge key, not a 1-photo limit.
 4. Approver routing: `getIndependentDataApprovers` (same tenant `userId`, `isAuthorized+isVerified+isDataApprover`, exclude submitter) → preview + `[✅ Confirm][❌ Reject]` inline buttons. Owner self-upload skips to CONFIRMED.
 5. On action: `notifyOtherApprovers` (no double-handle), notify submitter. Dashboard approvals page mirrors the same queue. `TelegramMessage @unique([senderId, telegramMsgId])` guards duplicate delivery.
 
@@ -100,12 +100,14 @@ Plus BAI-copied: `User/Session/Account/Verification` (Better Auth), `TelegramSen
 - `senders.ts` adapted: upsert, activeReportType state machine, OTP helpers.
 
 ## 7. Dashboard
-- Routes: `/` overview, `/fuel`, `/brick`, `/reports/[date]`, `/approvals`, `/admin/*`, `/login`, `/setup`.
-- Charts: custom SVG (line + donut + bar) copied from BAI `monthly-demand-chart.tsx`; TanStack Query `*Keys` hook factories; shadcn/ui + Tailwind (BAI `components.json`).
-- Legacy removal: `components/LedgerWorkspace.tsx` upload section, `lib/storage.ts` IndexedDB, 5-column profit/loss derivation.
+- Routes: `/dashboard` overview, `/fuel`, `/brick`, `/reports/[date]`, `/approvals`, `/settings`, `/admin/users`, `/login`, `/admin/login`, `/setup`.
+- Date filter (BAI semantics, URL-only): `lib/date-filter.ts` + `components/DateFilter.tsx` in the header-right `actions` slot; default current month; modes overall/day/month/year/custom.
+- Range delete: `DELETE /api/ledger-entries` (fuel|brick, owner-only) + reusable `components/Modal.tsx` confirm.
+- Dashboard approve/reject (`POST /api/approvals`) notifies the submitter's Telegram chat.
+- Charts: custom SVG (line + donut + bar) copied from BAI `monthly-demand-chart.tsx`. No IndexedDB (legacy `lib/storage.ts` removed).
 
 ## 8. Env & secrets
-Server-only: `DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `GEMINI_API_KEYS`, `BETTER_AUTH_SECRET`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`. Public (`NEXT_PUBLIC_`): app URL/name only. Never a key. Bot config in env for MVP (BAI DB-backed `BotSettings` is Phase 2).
+Server-only: `DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `GEMINI_API_KEYS`, `BETTER_AUTH_SECRET`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`. Public (`NEXT_PUBLIC_`): app URL/name only. Never a key. Bot config DB-first (`BotSettings` with env fallback); Settings PUT auto-registers the webhook.
 
 ## 9. Error taxonomy & limits
 Retryable (next key): 429/quota/rate-limit/invalid-key/permission-denied. Terminal (direct 4xx/5xx, no key burn): bad image type/size, malformed Gemini JSON after 1 parse attempt → `NEEDS_REVIEW` with rawText. Webhook must answer 200 < Telegram retry window; Gemini sequential, 1 photo = 1 call (~5–15 s, inside 60 s Hobby cap). `date @unique` merges 4–6 photos/day into 1 report/day (bot accepts multiple photos; no per-day photo cap at 1).

@@ -7,6 +7,8 @@ import { asText } from "./shared";
 
 export type BrickData = {
   rawText: string;
+  /** Content date as written on the page (e.g. "15/9/2026"), or empty. */
+  date: string;
   rows: { item: string; qty: string; unit_price: string; amount: string }[];
 };
 
@@ -16,15 +18,21 @@ export type BrickParseResult = {
   unreadable_fields: string[];
 };
 
-const EMPTY: BrickData = { rawText: "", rows: [] };
+const EMPTY: BrickData = { rawText: "", date: "", rows: [] };
+
+/** A brick page rarely holds more than ~20 legible rows; above that Gemini
+ *  is usually duplicating or hallucinating lines. */
+const MAX_PLAUSIBLE_ROWS = 25;
 
 export function brickPrompt(): string {
   return (
     `Extract the brick/material ledger table from this photo (may be Myanmar handwriting). ` +
     `Return ONLY valid JSON with this exact shape:\n` +
     `{"rawText":"all legible source text or empty string",` +
+    `"date":"content date as written on the page (e.g. 15/9/2026) or empty string",` +
     `"rows":[{"item":"item name as written or empty","qty":"quantity or empty",` +
     `"unit_price":"unit price or empty","amount":"line amount or empty"}]}\n` +
+    `List each physical row ONCE — never repeat or split rows to inflate the count. ` +
     `Do not invent unclear values — use empty strings. Preserve source formats.`
   );
 }
@@ -37,21 +45,34 @@ export function parseBrickResponse(text: string): BrickParseResult {
     return { data: EMPTY, confidence: 0, unreadable_fields: ["response"] };
   }
   const raw = Array.isArray(parsed.rows) ? parsed.rows : [];
-  const rows: BrickData["rows"] = raw.map((entry) => {
+  const rows: BrickData["rows"] = [];
+  const seen = new Set<string>();
+  let duplicates = 0;
+  for (const entry of raw) {
     const row = (entry ?? {}) as Record<string, unknown>;
-    return {
+    const candidate = {
       item: asText(row.item),
       qty: asText(row.qty),
       unit_price: asText(row.unit_price),
       amount: asText(row.amount),
     };
-  });
-  const data: BrickData = { rawText: asText(parsed.rawText), rows };
+    const key = `${candidate.item}|${candidate.qty}|${candidate.unit_price}|${candidate.amount}`;
+    if (seen.has(key)) {
+      duplicates += 1;
+      continue;
+    }
+    seen.add(key);
+    rows.push(candidate);
+  }
+  const data: BrickData = { rawText: asText(parsed.rawText), date: asText(parsed.date), rows };
   const unreadable: string[] = [];
   if (!data.rawText) unreadable.push("rawText");
   if (rows.length === 0) unreadable.push("rows");
-  // Handwriting: cap confidence below typed-clean ledgers.
-  const confidence = rows.length === 0 ? 0.2 : data.rawText ? 0.7 : 0.45;
+  if (duplicates > 0) unreadable.push("duplicate_rows");
+  if (rows.length > MAX_PLAUSIBLE_ROWS) unreadable.push("row_count_suspect");
+  // Handwriting: cap confidence below typed-clean ledgers; suspect counts cap harder.
+  let confidence = rows.length === 0 ? 0.2 : data.rawText ? 0.7 : 0.45;
+  if (unreadable.includes("row_count_suspect")) confidence = Math.min(confidence, 0.4);
   return { data, confidence, unreadable_fields: unreadable };
 }
 
@@ -72,7 +93,7 @@ export function parseBrickMessage(text: string): BrickParseResult {
         });
       }
     }
-    return { data: { rawText: text.trim(), rows }, confidence: 0.35, unreadable_fields: [] };
+    return { data: { rawText: text.trim(), date: "", rows }, confidence: 0.35, unreadable_fields: [] };
   } catch {
     return { data: EMPTY, confidence: 0, unreadable_fields: ["response"] };
   }

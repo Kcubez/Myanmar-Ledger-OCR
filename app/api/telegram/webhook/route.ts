@@ -23,7 +23,7 @@ import {
   isPrismaUniqueConstraintError,
 } from "../../../../lib/telegram/senders";
 import { sendOTPEmail } from "../../../../lib/email";
-import { uploadImage, storagePath } from "../../../../lib/supabase";
+import { uploadImage, storagePath, stagingPath, moveImage, deleteImage, bucketPath } from "../../../../lib/supabase";
 import { dateKey, resolveReportDate } from "../../../../lib/report-date";
 import {
   parseKeyList,
@@ -476,15 +476,22 @@ async function processPhoto(
   }
   const base64 = main.toString("base64");
 
-  // Extract per ledger type.
-  const extracted = await extractByType(keys, model, base64, mode);
+  // Thumbnails-only policy (cost): the 1920px main lives in memory as the
+  // Gemini payload and is discarded; only the ~7KB thumb hits Storage.
+  const stagedThumbPath = stagingPath(chatId, mode, messageId, true);
+  const [extracted, stagedThumb] = await Promise.all([
+    extractByType(keys, model, base64, mode),
+    uploadImage(stagedThumbPath, thumb, "image/jpeg"),
+  ]);
   if (!extracted) {
     await prisma.telegramMessage.updateMany({ where: { chatId, messageId }, data: { status: "failed", error: "unavailable" } });
+    await deleteImage(stagedThumbPath).catch(() => false);
     await sendTelegramMessage({ botToken, chatId, text: "❌ Extraction ယာယီမရပါ။ ခဏကြာမှ ပြန်စမ်းပါ။" });
     return;
   }
   if (extracted.terminal) {
     await prisma.telegramMessage.updateMany({ where: { chatId, messageId }, data: { status: "failed", error: "parse" } });
+    await deleteImage(stagedThumbPath).catch(() => false);
     await sendTelegramMessage({ botToken, chatId, text: "❌ ဒီပုံကို ဖတ်မရပါ။ ပုံကြည်အောင်ရိုက်ပြီး ပြန်ပို့ပါ။" });
     return;
   }
@@ -495,11 +502,14 @@ async function processPhoto(
   const sender = await prisma.telegramSender.findUnique({ where: { id: senderId } });
   const autoConfirm = sender?.isDataApprover === true;
 
-  const mainPath = storagePath(key, mode, messageId, false);
   const thumbPath = storagePath(key, mode, messageId, true);
-  const storedMain = await uploadImage(mainPath, main, "image/jpeg");
-  const storedThumb = await uploadImage(thumbPath, thumb, "image/jpeg");
-  if (!storedMain) return fail("❌ ပုံ save မရပါ (storage)။ Admin ကို ဆက်သွယ်ပါ။");
+  // Move staging thumb → final content-date folder (server-side, no re-upload).
+  // If the move fails, keep the staging location as the source of truth.
+  let storedThumb: string | null = stagedThumb;
+  if (stagedThumb && (await moveImage(stagedThumbPath, thumbPath).catch(() => false))) {
+    storedThumb = bucketPath(thumbPath);
+  }
+  if (!storedThumb) return fail("❌ ပုံ save မရပါ (storage)။ Admin ကို ဆက်သွယ်ပါ။");
 
   const report = await prisma.dailyReport.upsert({
     where: { date: reportDate },
@@ -512,7 +522,7 @@ async function processPhoto(
     data: {
       reportId: report.id,
       ledgerType: mode.toUpperCase() as "REVENUE" | "EXPENSE" | "MAINTENANCE" | "FUEL" | "BRICK",
-      storagePath: storedMain,
+      storagePath: null, // thumbnails-only policy: full-size mains are discarded
       thumbnailPath: storedThumb,
       telegramFileId: fileId,
       sizeBytes: main.length,
@@ -614,11 +624,15 @@ async function extractByType(
       }
       case "brick": {
         const { result } = await extractWithKeyRotation({ keys, model, parts: parts(brickPrompt()), parse: parseBrickResponse });
+        const suspect =
+          result.unreadable_fields.includes("row_count_suspect") ||
+          result.unreadable_fields.includes("duplicate_rows");
         return {
-          contentDateText: "", rawText: result.data.rawText, persistKind: mode, lines: result.data.rows,
+          contentDateText: result.data.date, rawText: result.data.rawText, persistKind: mode, lines: result.data.rows,
           confidence: result.confidence, flags: result.unreadable_fields,
           summary: `🧱 Brick — ${result.data.rows.length} rows · confidence ${Math.round(result.confidence * 100)}%` +
-            (result.data.rows.length === 0 ? "\n⚠️ စာမဖတ်နိုင်ပါ — dashboard မှာ ကိုယ်တိုင်ထည့်ပါ" : ""),
+            (result.data.rows.length === 0 ? "\n⚠️ စာမဖတ်နိုင်ပါ — dashboard မှာ ကိုယ်တိုင်ထည့်ပါ" : "") +
+            (suspect ? "\n⚠️ အကြောင်းအရာများနေပါတယ် — dashboard မှာ စစ်ပေးပါ" : ""),
         };
       }
       default:
