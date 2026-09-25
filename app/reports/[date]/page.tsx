@@ -108,11 +108,10 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ d
               vehicle: row.vehicle,
               amount: Number(row.amount),
               part: row.part,
-              vendor: row.vendor,
             })),
             fuelEntries: report.fuelEntries.map((row) => ({
-              vehicle: row.vehicle,
               particular: row.particular,
+              date: row.date ? row.date.toISOString().slice(0, 10) : null,
               inGal: row.inGal === null ? null : Number(row.inGal),
               outGal: row.outGal === null ? null : Number(row.outGal),
               balanceGal: row.balanceGal === null ? null : Number(row.balanceGal),
@@ -120,6 +119,7 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ d
             })),
             brickEntries: report.brickEntries.map((row) => ({
               item: row.item,
+              date: row.date ? row.date.toISOString().slice(0, 10) : null,
               qty: row.qty === null ? null : Number(row.qty),
               unitPrice: row.unitPrice === null ? null : Number(row.unitPrice),
               amount: row.amount === null ? null : Number(row.amount),

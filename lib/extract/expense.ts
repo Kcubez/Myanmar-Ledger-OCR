@@ -1,4 +1,4 @@
-import { amountFrom, asText } from "./shared";
+import { amountFrom, asText, parseJsonObject } from "./shared";
 
 /**
  * Expense (OPEX) ledger: drawings + operation + daily wages breakdown.
@@ -43,7 +43,7 @@ export function expensePrompt(): string {
 export function parseExpenseResponse(text: string): ExpenseParseResult {
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as Record<string, unknown>;
+    parsed = parseJsonObject(text);
   } catch {
     return { data: EMPTY, confidence: 0, unreadable_fields: ["response"] };
   }
@@ -73,7 +73,9 @@ export function parseExpenseResponse(text: string): ExpenseParseResult {
     amountFrom(data.operation) +
     wages.reduce((sum, wage) => sum + amountFrom(wage.amount), 0);
   if (data.total && total !== parts) unreadable.push("sum_mismatch");
-  const confidence = !data.total && wages.length === 0 ? 0.2 : unreadable.length <= 2 ? 0.85 : 0.55;
+  let confidence = !data.total && wages.length === 0 ? 0.2 : unreadable.length <= 2 ? 0.85 : 0.55;
+  // Revenue parity: a total mismatch caps confidence even when everything parsed.
+  if (unreadable.includes("sum_mismatch")) confidence = Math.min(confidence, 0.55);
   return { data, confidence, unreadable_fields: unreadable };
 }
 

@@ -17,8 +17,8 @@ No anonymous/public access. No self-signup. Owner creates staff pre-registration
 |---|---|---|---|
 | Revenue | Daily revenue summary table | `date, total, cash, kbz_pay, mmqr, kbz_special, aya_special` | `sum(parts) == total`, else flag |
 | Expense (OPEX) | Expense + daily wages tables | `total, business_drawing, personal_drawing, operation, wages[{name,role,amount}]` | `sum == total`, else flag |
-| Maintenance | Maintenance table | `[{vehicle, amount, part, vendor}]` | amount > 0 |
-| Fuel | Fuel ledger (Date\|Particular\|In\|Out\|Balance, gallons) | `[{date, vehicle, in_gal, out_gal, balance_gal}]` | running-balance check → `balanceOk` |
+| Maintenance | Maintenance table (Vehicle/Ship \| Amount \| Part — 3 cols, no vendor) | `[{vehicle, amount, part}]` | amount > 0 |
+| Fuel | Fuel ledger (Date\|Particular\|In\|Out\|Balance, gallons — particular holds machine/notes, no vehicle col) | `[{date, particular, in_gal, out_gal, balance_gal}]` | running-balance check → `balanceOk` |
 | Brick | Brick ledger (Myanmar handwriting) | `[{item, qty, unit_price, amount}]` + `rawText` always | low-confidence flagged, **never invent values** |
 
 Common per extraction: `{confidence 0–1, unreadable_fields[]}`. Unclear values → empty + flag → dashboard edit, never hallucinated.
@@ -33,7 +33,7 @@ Common per extraction: `{confidence 0–1, unreadable_fields[]}`. Unclear values
 
 ## 5. Dashboard (web upload REMOVED, Telegram-only input)
 - Login: email/password (Better Auth), single admin; session-guarded routes.
-- Pages: Overview (revenue vs expense line, payment-split donut, OPEX bar), Fuel (in/out per vehicle bar + balance line + low-stock alert), Brick (qty/amount by item), Daily detail (original photo + editable parsed tables + totals recalc), Approvals queue (pending/confirmed/rejected).
+- Pages: Overview (revenue vs expense line, payment-split donut, OPEX bar), Fuel (in/out per particular bar, per-row edit/delete), Brick (qty/amount by item), Maintenance (spend per vehicle/ship bar, per-row edit/delete), Daily detail (original photo + editable parsed tables + totals recalc), Approvals queue (pending/confirmed/rejected).
 - Charts: zero-dependency custom SVG (BAI `monthly-demand-chart.tsx` pattern) — no recharts, Vercel-free-friendly bundle.
 - Edit behavior: editing revenue/expense lines recalculates derived totals immediately (fixes legacy 5-column staleness bug).
 

@@ -9,32 +9,32 @@ import { normalizeDigits } from "./extract/shared";
 export function extractContentDate(text: string): Date | null {
   // Normalize Myanmar digits ၀-၉ first — handwritten headers often use them.
   const cleaned = normalizeDigits(text).replace(/\(.*?\)/g, " ");
-  const patterns = [
-    /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/,
-    /(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/,
-  ];
-  for (const pattern of patterns) {
-    const match = cleaned.match(pattern);
-    if (!match) continue;
-    let year: number;
-    let month: number;
-    let day: number;
-    if (match[1].length === 4) {
-      year = Number(match[1]);
-      month = Number(match[2]);
-      day = Number(match[3]);
-    } else {
-      day = Number(match[1]);
-      month = Number(match[2]);
-      year = Number(match[3]);
-      if (year < 100) year += 2000;
-    }
-    if (month < 1 || month > 12 || day < 1 || day > 31) continue;
-    const date = new Date(Date.UTC(year, month - 1, day));
-    if (Number.isNaN(date.getTime())) continue;
-    return date;
+  // Year-first BEFORE day-first: otherwise "2026-09-21" matches the d/m/Y
+  // branch as 26-09-21 → 2021-09-26. Guards keep matches off digit runs.
+  const ymd = cleaned.match(/(?:^|[^\d])(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})(?!\d)/);
+  if (ymd) {
+    const date = validDate(Number(ymd[1]), Number(ymd[2]), Number(ymd[3]));
+    if (date) return date;
+  }
+  const dmy = cleaned.match(/(?:^|[^\d])(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})(?!\d)/);
+  if (dmy) {
+    let year = Number(dmy[3]);
+    if (year < 100) year += 2000;
+    const date = validDate(year, Number(dmy[2]), Number(dmy[1]));
+    if (date) return date;
   }
   return null;
+}
+
+/** Build a UTC-midnight date only if the components round-trip (kills Feb 31). */
+function validDate(year: number, month: number, day: number): Date | null {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return null;
+  }
+  return date;
 }
 
 /** Start-of-day UTC for a content-date string, or the fallback day. */

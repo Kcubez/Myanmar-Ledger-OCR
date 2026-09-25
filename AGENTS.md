@@ -12,7 +12,7 @@ Single-client ledger system: Telegram-only input, dashboard-only web. Ledger typ
 - Every parser returns `{ data, confidence, unreadable_fields[] }` and NEVER throws, NEVER invents values. Unclear → empty + flag.
 - Gemini: `temperature 0`, `responseMimeType application/json`, fixed schema per type, caption as type hint.
 - Key rotation: sequential over comma-separated keys (DB `BotSettings.geminiApiKey` first, `GEMINI_API_KEYS` env fallback); 90 s/key timeout + 1 same-key retry, continue only on quota/rate-limit/key/timeout errors; terminal errors return directly without burning keys.
-- Money: kyat integers (`BigInt` in Prisma, string over JSON). Gallons: `Decimal`. Normalize Myanmar digits ၀-၉ before parsing.
+- Money: kyat integers (`BigInt` in Prisma, JSON `Number` at the API boundary — safe below 2^53, far above any ledger total). Gallons: `Decimal`. Normalize Myanmar digits ၀-၉ before parsing.
 
 ## Auth & tenant rules
 - `proxy.ts` guard + PUBLIC list is load-bearing; keep `/api/telegram/*` public (secret-header auth) and everything else session-gated.

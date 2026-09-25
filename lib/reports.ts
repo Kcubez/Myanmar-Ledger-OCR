@@ -48,8 +48,10 @@ export async function recalcTotals(reportId: string) {
     data: {
       totalRevenue: revenue._sum.amount ?? BigInt(0),
       totalExpense: expense._sum.amount ?? BigInt(0),
-      totalFuelIn: fuel._sum.inGal ?? undefined,
-      totalFuelOut: fuel._sum.outGal ?? undefined,
+      // NOTE: ?? 0, never ?? undefined — undefined is a Prisma no-op and
+      // would leave stale totals behind after clearing all fuel entries.
+      totalFuelIn: fuel._sum.inGal ?? 0,
+      totalFuelOut: fuel._sum.outGal ?? 0,
     },
   });
 }

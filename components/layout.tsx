@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/dashboard", label: "Overview", ico: "📊" },
   { href: "/fuel", label: "Fuel", ico: "⛽" },
   { href: "/brick", label: "Brick", ico: "🧱" },
+  { href: "/maintenance", label: "Maintenance", ico: "🔧" },
   { href: "/approvals", label: "Approvals", ico: "✅" },
   { href: "/settings", label: "Settings", ico: "⚙️" },
 ];

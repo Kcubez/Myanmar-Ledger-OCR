@@ -1,14 +1,15 @@
-import { amountFrom, asText } from "./shared";
+import { amountFrom, asText, parseJsonObject } from "./shared";
 
 /**
  * Fuel ledger: Date | Particular | In | Out | Balance (gallons).
+ * The book has a single Particular column (machine names like Loader, 5K,
+ * 10' or Myanmar notes) — there is no separate vehicle column.
  * Running-balance check flags rows but never rewrites extracted values.
  */
 
 export type FuelData = {
   rows: {
     date: string;
-    vehicle: string;
     particular: string;
     in_gal: string;
     out_gal: string;
@@ -26,8 +27,8 @@ export type FuelParseResult = {
 export function fuelPrompt(): string {
   return (
     `Extract the fuel ledger table from this photo. Return ONLY valid JSON with this exact shape:\n` +
-    `{"rows":[{"date":"source date or empty","vehicle":"vehicle id like Loader, 5K, 10', 2A or empty",` +
-    `"particular":"particular text or empty","in_gal":"gallons in or empty","out_gal":"gallons out or empty",` +
+    `{"rows":[{"date":"source date or empty","particular":"particular text as written (machine like Loader, 5K, 10' or Myanmar notes) or empty",` +
+    `"in_gal":"gallons in or empty","out_gal":"gallons out or empty",` +
     `"balance_gal":"running balance or empty"}]}\n` +
     `Preserve source formats (e.g. "5 gal"). Do not invent unclear values. ` +
     `Preserve Myanmar script verbatim — never transliterate.`
@@ -37,7 +38,7 @@ export function fuelPrompt(): string {
 export function parseFuelResponse(text: string): FuelParseResult {
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as Record<string, unknown>;
+    parsed = parseJsonObject(text);
   } catch {
     return { data: { rows: [] }, confidence: 0, unreadable_fields: ["response"] };
   }
@@ -46,7 +47,6 @@ export function parseFuelResponse(text: string): FuelParseResult {
     const row = (entry ?? {}) as Record<string, unknown>;
     return {
       date: asText(row.date),
-      vehicle: asText(row.vehicle),
       particular: asText(row.particular),
       in_gal: asText(row.in_gal),
       out_gal: asText(row.out_gal),
@@ -102,8 +102,7 @@ export function parseFuelMessage(text: string): FuelParseResult {
       if (match) {
         rows.push({
           date: (match[1] ?? "").trim(),
-          vehicle: (match[2] ?? "").trim(),
-          particular: "",
+          particular: (match[2] ?? "").trim(),
           in_gal: (match[3] ?? "").trim(),
           out_gal: (match[4] ?? "").trim(),
           balance_gal: (match[5] ?? "").trim(),

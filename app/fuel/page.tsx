@@ -4,6 +4,7 @@ import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
 import { AppShell, PageHeader, StatCard } from "../../components/layout";
 import { DateFilter } from "../../components/DateFilter";
 import { DeleteRangeButton } from "../../components/DeleteRangeButton";
+import { DeleteRowButton } from "../../components/DeleteRowButton";
 import { BarChart } from "../../components/charts";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +18,9 @@ export default async function FuelPage({
   const range = parseDateFilter(await searchParams);
   const where = rangeWhere(range);
 
-  const [byVehicle, mismatches, recent, entryCount] = await Promise.all([
+  const [byParticular, mismatches, recent, entryCount] = await Promise.all([
     prisma.fuelEntry.groupBy({
-      by: ["vehicle"],
+      by: ["particular"],
       where: { report: { date: where } },
       _sum: { inGal: true, outGal: true },
     }),
@@ -38,15 +39,15 @@ export default async function FuelPage({
     prisma.fuelEntry.count({ where: { report: { date: where } } }),
   ]);
 
-  const totalIn = byVehicle.reduce((s, row) => s + Number(row._sum.inGal ?? 0), 0);
-  const totalOut = byVehicle.reduce((s, row) => s + Number(row._sum.outGal ?? 0), 0);
+  const totalIn = byParticular.reduce((s, row) => s + Number(row._sum.inGal ?? 0), 0);
+  const totalOut = byParticular.reduce((s, row) => s + Number(row._sum.outGal ?? 0), 0);
 
   return (
     <AppShell>
       <PageHeader
         eyebrow="LEDGER DASHBOARD"
         title="Fuel"
-        sub={`${range.label} · gallons in/out per vehicle`}
+        sub={`${range.label} · gallons in/out per particular`}
         actions={
           <>
             <DateFilter />
@@ -75,10 +76,10 @@ export default async function FuelPage({
 
       <div className="grid-even">
         <section className="card pad">
-          <h2>Out per vehicle (gal)</h2>
-          {byVehicle.length ? (
+          <h2>Out per particular (gal)</h2>
+          {byParticular.length ? (
             <BarChart
-              data={byVehicle.map((row) => ({ label: row.vehicle || "—", value: Number(row._sum.outGal ?? 0) }))}
+              data={byParticular.map((row) => ({ label: row.particular || "—", value: Number(row._sum.outGal ?? 0) }))}
               color="#c98a2b"
             />
           ) : (
@@ -86,10 +87,10 @@ export default async function FuelPage({
           )}
         </section>
         <section className="card pad">
-          <h2>In per vehicle (gal)</h2>
-          {byVehicle.length ? (
+          <h2>In per particular (gal)</h2>
+          {byParticular.length ? (
             <BarChart
-              data={byVehicle.map((row) => ({ label: row.vehicle || "—", value: Number(row._sum.inGal ?? 0) }))}
+              data={byParticular.map((row) => ({ label: row.particular || "—", value: Number(row._sum.inGal ?? 0) }))}
               color="#21633e"
             />
           ) : (
@@ -106,7 +107,7 @@ export default async function FuelPage({
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Vehicle</th>
+                  <th>Particular</th>
                   <th>In</th>
                   <th>Out</th>
                   <th>Balance</th>
@@ -116,7 +117,7 @@ export default async function FuelPage({
                 {mismatches.map((row) => (
                   <tr key={row.id}>
                     <td>{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
-                    <td>{row.vehicle}</td>
+                    <td>{row.particular || row.vehicle || "—"}</td>
                     <td>{row.inGal?.toString() ?? "—"}</td>
                     <td>{row.outGal?.toString() ?? "—"}</td>
                     <td>{row.balanceGal?.toString() ?? "—"}</td>
@@ -135,34 +136,32 @@ export default async function FuelPage({
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Vehicle</th>
                 <th>Particular</th>
                 <th>In</th>
                 <th>Out</th>
                 <th>Balance</th>
-                <th>OK</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {recent.map((row) => (
-                <tr key={row.id}>
-                  <td>{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
-                  <td>{row.vehicle || "—"}</td>
-                  <td>{row.particular || "—"}</td>
-                  <td>{row.inGal?.toString() ?? "—"}</td>
-                  <td>{row.outGal?.toString() ?? "—"}</td>
-                  <td>{row.balanceGal?.toString() ?? "—"}</td>
-                  <td>
-                    {row.balanceOk === null || row.balanceOk === undefined ? (
-                      "—"
-                    ) : row.balanceOk ? (
-                      <span className="pill confirmed">OK</span>
-                    ) : (
-                      <span className="pill review">CHECK</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {recent.map((row) => {
+                const dateKey = (row.date ?? row.report.date).toISOString().slice(0, 10);
+                return (
+                  <tr key={row.id}>
+                    <td>{dateKey}</td>
+                    <td>{row.particular || row.vehicle || "—"}</td>
+                    <td>{row.inGal?.toString() ?? "—"}</td>
+                    <td>{row.outGal?.toString() ?? "—"}</td>
+                    <td>{row.balanceGal?.toString() ?? "—"}</td>
+                    <td>
+                      <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                        <a href={`/reports/${dateKey}`}>Edit</a>
+                        <DeleteRowButton deleteUrl={`/api/fuel-entries/${row.id}`} label="fuel entry" />
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -1,12 +1,13 @@
-import { asText } from "./shared";
+import { asText, parseJsonObject } from "./shared";
 
 /**
- * Maintenance ledger: vehicle/ship + amount + part/vendor.
+ * Maintenance ledger: vehicle/ship + amount + part.
+ * The book table has 3 columns only — no vendor column.
  */
 
 export type MaintenanceData = {
   date: string;
-  lines: { vehicle: string; amount: string; part: string; vendor: string }[];
+  lines: { vehicle: string; amount: string; part: string }[];
 };
 
 export type MaintenanceParseResult = {
@@ -21,7 +22,7 @@ export function maintenancePrompt(): string {
   return (
     `Extract the maintenance table from this ledger photo. Return ONLY valid JSON with this exact shape:\n` +
     `{"date":"report date or empty string",` +
-    `"lines":[{"vehicle":"vehicle/ship id or empty","amount":"amount or empty","part":"part name or empty","vendor":"vendor/shop or empty"}]}\n` +
+    `"lines":[{"vehicle":"vehicle/ship id or empty","amount":"amount or empty","part":"part name or empty"}]}\n` +
     `Do not invent unclear values — use empty strings. Preserve source formats. ` +
     `Preserve Myanmar script verbatim — never transliterate.`
   );
@@ -30,7 +31,7 @@ export function maintenancePrompt(): string {
 export function parseMaintenanceResponse(text: string): MaintenanceParseResult {
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as Record<string, unknown>;
+    parsed = parseJsonObject(text);
   } catch {
     return { data: EMPTY, confidence: 0, unreadable_fields: ["response"] };
   }
@@ -41,7 +42,6 @@ export function parseMaintenanceResponse(text: string): MaintenanceParseResult {
       vehicle: asText(row.vehicle),
       amount: asText(row.amount),
       part: asText(row.part),
-      vendor: asText(row.vendor),
     };
   });
   const data: MaintenanceData = { date: asText(parsed.date), lines };
@@ -70,7 +70,6 @@ export function parseMaintenanceMessage(text: string): MaintenanceParseResult {
           vehicle: match[1].trim(),
           amount: match[2].trim(),
           part: (match[3] ?? "").trim(),
-          vendor: "",
         });
       }
     }

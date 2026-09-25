@@ -1,4 +1,4 @@
-import { amountFrom, asText } from "./shared";
+import { amountFrom, asText, parseJsonObject } from "./shared";
 
 /**
  * Revenue ledger: daily summary with fixed payment-method split.
@@ -44,7 +44,7 @@ const KEY_TO_METHOD: Record<string, RevenueMethod> = {
 export function parseRevenueResponse(text: string): RevenueParseResult {
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as Record<string, unknown>;
+    parsed = parseJsonObject(text);
   } catch {
     return { data: EMPTY, confidence: 0, unreadable_fields: ["response"] };
   }

@@ -60,11 +60,12 @@ model ExpenseLine { id String @id @default(cuid())  reportId String
   @@index([reportId, category]) }
 model MaintenanceLine { id String @id @default(cuid())  reportId String
   report DailyReport @relation(fields:[reportId], references:[id], onDelete:Cascade)
-  vehicle String  amount BigInt  part String?  vendor String?
+  vehicle String  amount BigInt  part String?  (no vendor — book has 3 cols)
   @@index([reportId]) }
 model FuelEntry { id String @id @default(cuid())  reportId String
   report DailyReport @relation(fields:[reportId], references:[id], onDelete:Cascade)
-  vehicle String  particular String?  inGal Decimal? @db.Decimal(10,2)
+  vehicle String  (legacy, always "" — machine names live in particular)
+  particular String?  inGal Decimal? @db.Decimal(10,2)
   outGal Decimal? @db.Decimal(10,2)  balanceGal Decimal? @db.Decimal(10,2)
   balanceOk Boolean?  confidence Float?  @@index([reportId, vehicle]) }
 model BrickEntry { id String @id @default(cuid())  reportId String

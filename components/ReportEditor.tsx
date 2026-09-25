@@ -7,16 +7,16 @@ export type EditableReport = {
   status: string;
   revenueLines: { method: string; amount: number }[];
   expenseLines: { category: string; name: string | null; role: string | null; amount: number }[];
-  maintenanceLines: { vehicle: string; amount: number; part: string | null; vendor: string | null }[];
+  maintenanceLines: { vehicle: string; amount: number; part: string | null }[];
   fuelEntries: {
-    vehicle: string;
     particular: string | null;
+    date: string | null; // round-tripped hidden; PATCH falls back to page date
     inGal: number | null;
     outGal: number | null;
     balanceGal: number | null;
     balanceOk: boolean | null;
   }[];
-  brickEntries: { item: string; qty: number | null; unitPrice: number | null; amount: number | null }[];
+  brickEntries: { item: string; date: string | null; qty: number | null; unitPrice: number | null; amount: number | null }[];
 };
 
 const inputStyle = {
@@ -266,7 +266,7 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
             <table>
               <thead>
                 <tr>
-                  <th>Vehicle</th>
+                  <th>Particular</th>
                   <th>In</th>
                   <th>Out</th>
                   <th>Balance</th>
@@ -280,11 +280,11 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
                     <td>
                       <input
                         style={inputStyle}
-                        value={row.vehicle}
+                        value={row.particular ?? ""}
                         onChange={(e) =>
                           setRows(
                             "fuelEntries",
-                            report.fuelEntries.map((r, j) => (j === i ? { ...r, vehicle: e.target.value } : r)),
+                            report.fuelEntries.map((r, j) => (j === i ? { ...r, particular: e.target.value } : r)),
                           )
                         }
                       />

@@ -11,6 +11,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
     }
 
+    // Lock check BEFORE attempting signup: after setup the auth hook rejects
+    // creation, which would otherwise surface here as a 500 instead of 403.
+    if ((await prisma.user.count()) > 0) {
+      return NextResponse.json(
+        { message: "Setup is already locked. Admin already exists." },
+        { status: 403 },
+      );
+    }
+
     // Create the user via Better Auth (hashes password, creates Account link).
     const newAdminResponse = await auth.api.signUpEmail({
       body: { email, password, name },

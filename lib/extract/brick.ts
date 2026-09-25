@@ -1,4 +1,4 @@
-import { asText } from "./shared";
+import { asText, parseJsonObject } from "./shared";
 
 /**
  * Brick ledger: Myanmar handwriting, hardest OCR target.
@@ -42,7 +42,7 @@ export function brickPrompt(): string {
 export function parseBrickResponse(text: string): BrickParseResult {
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as Record<string, unknown>;
+    parsed = parseJsonObject(text);
   } catch {
     return { data: EMPTY, confidence: 0, unreadable_fields: ["response"] };
   }
