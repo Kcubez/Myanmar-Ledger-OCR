@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireOwner } from "../../../lib/require-owner";
-import { serializeReport } from "../../../lib/reports";
+import { serializeReport, deleteReportCascade } from "../../../lib/reports";
 import { finalizeReportMessages } from "../../../lib/telegram/notify";
 
 export const dynamic = "force-dynamic";
@@ -33,19 +33,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Provide reportId and action approve|reject" }, { status: 400 });
   }
   const approved = body.action === "approve";
-  const status = approved ? "CONFIRMED" : "NEEDS_REVIEW";
-  const report = await prisma.dailyReport.update({
-    where: { id: body.reportId },
-    data: { status },
-  });
-  await prisma.telegramMessage.updateMany({
-    where: { reportId: body.reportId },
-    data: { status: approved ? "confirmed" : "rejected" },
-  });
+  const existing = await prisma.dailyReport.findUnique({ where: { id: body.reportId }, select: { id: true } });
+  if (!existing) return NextResponse.json({ message: "Not found." }, { status: 404 });
 
   // Awaited (not fire-and-forget): serverless runtimes can freeze the function
   // the moment the response returns, killing a background Telegram call.
-  // Approval itself already committed above; this only affects the notify.
   let telegramUpdated = false;
   try {
     await finalizeReportMessages({ ownerUserId: session.user.id, reportId: body.reportId, approved });
@@ -53,5 +45,21 @@ export async function POST(req: NextRequest) {
   } catch (notifyError) {
     console.error("Approval Telegram notify failed:", notifyError);
   }
+
+  if (!approved) {
+    // Reject = delete everything (finalize ran first — it looks messages up
+    // by reportId). Staff re-sends the photo to correct it.
+    await deleteReportCascade(body.reportId);
+    return NextResponse.json({ ok: true, deleted: true, telegramUpdated });
+  }
+
+  const report = await prisma.dailyReport.update({
+    where: { id: body.reportId },
+    data: { status: "CONFIRMED" },
+  });
+  await prisma.telegramMessage.updateMany({
+    where: { reportId: body.reportId },
+    data: { status: "confirmed" },
+  });
   return NextResponse.json({ ok: true, status: report.status, telegramUpdated });
 }

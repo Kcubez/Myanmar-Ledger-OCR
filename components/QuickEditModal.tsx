@@ -25,6 +25,8 @@ type BrickRow = {
   amount: number | null;
 };
 type MaintRow = { id: string; vehicle: string; amount: number; part: string | null };
+type RevRow = { id: string; method: string; amount: number };
+type ExpRow = { id: string; category: string; name: string | null; role: string | null; amount: number };
 
 const num = (value: string): number => (value === "" ? 0 : Number(value) || 0);
 const numOrNull = (value: string): number | null => (value === "" ? null : Number(value) || 0);
@@ -185,7 +187,7 @@ export function RowEditModal({
   rowId,
 }: {
   dateKey: string;
-  kind: "fuel" | "brick" | "maintenance";
+  kind: "fuel" | "brick" | "maintenance" | "revenue" | "expense" | "wage";
   rowId: string;
 }) {
   const router = useRouter();
@@ -196,6 +198,8 @@ export function RowEditModal({
   const [fuel, setFuel] = useState<FuelRow[] | null>(null);
   const [brick, setBrick] = useState<BrickRow[] | null>(null);
   const [maint, setMaint] = useState<MaintRow[] | null>(null);
+  const [rev, setRev] = useState<RevRow[] | null>(null);
+  const [exp, setExp] = useState<ExpRow[] | null>(null);
 
   async function load() {
     setOpen(true);
@@ -205,11 +209,19 @@ export function RowEditModal({
       const response = await fetch(`/api/reports/${dateKey}`);
       if (!response.ok) throw new Error("Load failed.");
       const data = (await response.json()) as {
-        report: { fuelEntries: FuelRow[]; brickEntries: BrickRow[]; maintenanceLines: MaintRow[] };
+        report: {
+          fuelEntries: FuelRow[];
+          brickEntries: BrickRow[];
+          maintenanceLines: MaintRow[];
+          revenueLines: RevRow[];
+          expenseLines: ExpRow[];
+        };
       };
       setFuel(data.report.fuelEntries);
       setBrick(data.report.brickEntries);
       setMaint(data.report.maintenanceLines);
+      setRev(data.report.revenueLines);
+      setExp(data.report.expenseLines);
     } catch {
       setError("Load failed.");
     } finally {
@@ -222,7 +234,15 @@ export function RowEditModal({
     setError("");
     try {
       const body =
-        kind === "fuel" ? { fuel } : kind === "brick" ? { brick } : { maintenance: maint };
+        kind === "fuel"
+          ? { fuel }
+          : kind === "brick"
+            ? { brick }
+            : kind === "maintenance"
+              ? { maintenance: maint }
+              : kind === "revenue"
+                ? { revenue: rev }
+                : { expense: exp };
       const response = await fetch(`/api/reports/${dateKey}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -238,13 +258,30 @@ export function RowEditModal({
     }
   }
 
-  const titles = { fuel: "Edit fuel row", brick: "Edit brick row", maintenance: "Edit maintenance line" } as const;
-  const rows = kind === "fuel" ? fuel : kind === "brick" ? brick : maint;
-  const row = (rows ?? []).find((r) => r.id === rowId) as FuelRow | BrickRow | MaintRow | undefined;
-  const setRow = (patch: Partial<FuelRow> & Partial<BrickRow> & Partial<MaintRow>) => {
+  const titles = {
+    fuel: "Edit fuel row",
+    brick: "Edit brick row",
+    maintenance: "Edit maintenance line",
+    revenue: "Edit revenue line",
+    expense: "Edit expense line",
+    wage: "Edit wages row",
+  } as const;
+  const rows = kind === "fuel" ? fuel : kind === "brick" ? brick : kind === "maintenance" ? maint : kind === "revenue" ? rev : exp;
+  const row = (rows ?? []).find((r) => r.id === rowId) as
+    | FuelRow
+    | BrickRow
+    | MaintRow
+    | RevRow
+    | ExpRow
+    | undefined;
+  const setRow = (
+    patch: Partial<FuelRow> & Partial<BrickRow> & Partial<MaintRow> & Partial<RevRow> & Partial<ExpRow>,
+  ) => {
     if (kind === "fuel") setFuel((fuel ?? []).map((r) => (r.id === rowId ? { ...r, ...patch } : r)));
     else if (kind === "brick") setBrick((brick ?? []).map((r) => (r.id === rowId ? { ...r, ...patch } : r)));
-    else setMaint((maint ?? []).map((r) => (r.id === rowId ? { ...r, ...patch } : r)));
+    else if (kind === "maintenance") setMaint((maint ?? []).map((r) => (r.id === rowId ? { ...r, ...patch } : r)));
+    else if (kind === "revenue") setRev((rev ?? []).map((r) => (r.id === rowId ? { ...r, ...patch } : r)));
+    else setExp((exp ?? []).map((r) => (r.id === rowId ? { ...r, ...patch } : r)));
   };
 
   return (
@@ -334,6 +371,52 @@ export function RowEditModal({
                       value={(row as MaintRow).part ?? ""}
                       style={{ ...boxStyle, width: 170 }}
                       onChange={(e) => setRow({ part: e.target.value })}
+                    />
+                  </Field>
+                </>
+              )}
+              {kind === "revenue" && (
+                <Field label={(row as RevRow).method}>
+                  <input
+                    value={(row as RevRow).amount}
+                    inputMode="numeric"
+                    style={boxStyle}
+                    onChange={(e) => setRow({ amount: num(e.target.value) })}
+                  />
+                </Field>
+              )}
+              {kind === "expense" && (
+                <Field label={(row as ExpRow).category.replace(/_/g, " ")}>
+                  <input
+                    value={(row as ExpRow).amount}
+                    inputMode="numeric"
+                    style={boxStyle}
+                    onChange={(e) => setRow({ amount: num(e.target.value) })}
+                  />
+                </Field>
+              )}
+              {kind === "wage" && (
+                <>
+                  <Field label="Name">
+                    <input
+                      value={(row as ExpRow).name ?? ""}
+                      style={{ ...boxStyle, width: 170 }}
+                      onChange={(e) => setRow({ name: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Role">
+                    <input
+                      value={(row as ExpRow).role ?? ""}
+                      style={{ ...boxStyle, width: 170 }}
+                      onChange={(e) => setRow({ role: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Amount">
+                    <input
+                      value={(row as ExpRow).amount}
+                      inputMode="numeric"
+                      style={boxStyle}
+                      onChange={(e) => setRow({ amount: num(e.target.value) })}
                     />
                   </Field>
                 </>

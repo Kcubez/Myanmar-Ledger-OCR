@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Modal } from "./Modal";
+import { RowEditModal } from "./QuickEditModal";
 
 export type EditableReport = {
   status: string;
-  revenueLines: { method: string; amount: number }[];
-  expenseLines: { category: string; name: string | null; role: string | null; amount: number }[];
-  maintenanceLines: { vehicle: string; amount: number; part: string | null }[];
+  revenueLines: { id: string; method: string; amount: number }[];
+  expenseLines: { id: string; category: string; name: string | null; role: string | null; amount: number }[];
+  maintenanceLines: { id: string; vehicle: string; amount: number; part: string | null }[];
   fuelEntries: {
+    id: string;
     particular: string | null;
     date: string | null; // round-tripped hidden; PATCH falls back to page date
     inGal: number | null;
@@ -16,75 +19,69 @@ export type EditableReport = {
     balanceGal: number | null;
     balanceOk: boolean | null;
   }[];
-  brickEntries: { item: string; date: string | null; qty: number | null; unitPrice: number | null; amount: number | null }[];
+  brickEntries: {
+    id: string;
+    item: string;
+    date: string | null;
+    qty: number | null;
+    unitPrice: number | null;
+    amount: number | null;
+  }[];
 };
 
-const inputStyle = {
-  width: "100%",
-  border: "1px solid transparent",
-  padding: 7,
-  borderRadius: 6,
-  background: "transparent",
-} as const;
+type Kind = "revenue" | "expense" | "maintenance" | "fuel" | "brick";
 
+/**
+ * Read-only ledger tables with per-row Edit (modal, immediate save) and
+ * Delete (immediate PATCH-minus-row + refresh). No drafts, no bulk save —
+ * every action persists at once. Rendered from props so router.refresh()
+ * always shows fresh server data.
+ */
 export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: EditableReport }) {
   const router = useRouter();
-  const [report, setReport] = useState<EditableReport>(initial);
-  const [status, setStatus] = useState(initial.status);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{ kind: Kind; id: string; label: string } | null>(null);
+  const [error, setError] = useState("");
 
-  const setRows = <K extends keyof EditableReport>(key: K, rows: EditableReport[K]) =>
-    setReport((current) => ({ ...current, [key]: rows }));
+  const arrays: Record<Kind, { id: string }[]> = {
+    revenue: initial.revenueLines,
+    expense: initial.expenseLines,
+    maintenance: initial.maintenanceLines,
+    fuel: initial.fuelEntries,
+    brick: initial.brickEntries,
+  };
 
-  async function save() {
-    setSaving(true);
-    setMessage("");
+  async function removeRow(kind: Kind, id: string) {
+    setBusyId(id);
+    setError("");
     try {
+      const kept = (arrays[kind] as Record<string, unknown>[]).filter((row) => row.id !== id);
       const response = await fetch(`/api/reports/${dateKey}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status,
-          revenue: report.revenueLines,
-          expense: report.expenseLines,
-          maintenance: report.maintenanceLines,
-          fuel: report.fuelEntries,
-          brick: report.brickEntries,
-        }),
+        body: JSON.stringify({ [kind]: kept }),
       });
-      if (!response.ok) throw new Error((await response.json()).message ?? "Save failed.");
-      setMessage("Saved — totals recalculated.");
+      if (!response.ok) throw new Error("Delete failed.");
+      setConfirming(null);
       router.refresh();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Save failed.");
+    } catch {
+      setError("Delete failed.");
     } finally {
-      setSaving(false);
+      setBusyId(null);
     }
   }
 
+  const fmt = (value: number | null) => (value === null ? "—" : value.toLocaleString());
+
   return (
     <div>
-      <div className="editor-actions" style={{ marginBottom: 14 }}>
-        <label className="muted">
-          Status{" "}
-          <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ padding: 8, borderRadius: 8 }}>
-            <option value="PENDING">PENDING</option>
-            <option value="CONFIRMED">CONFIRMED</option>
-            <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
-          </select>
-        </label>
-        <button type="button" onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Save changes"}
-        </button>
-        {message && (
-          <span className="status" role="status" style={{ width: "auto" }}>
-            {message}
-          </span>
-        )}
-      </div>
+      {error && (
+        <p role="alert" className="auth-error" style={{ marginBottom: 12 }}>
+          {error}
+        </p>
+      )}
 
-      {report.revenueLines.length > 0 && (
+      {initial.revenueLines.length > 0 && (
         <section style={{ marginBottom: 18 }}>
           <h2>Revenue</h2>
           <div className="table-wrap">
@@ -93,34 +90,23 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
                 <tr>
                   <th>Method</th>
                   <th>Amount</th>
-                  <th />
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {report.revenueLines.map((row, i) => (
-                  <tr key={i}>
+                {initial.revenueLines.map((row) => (
+                  <tr key={row.id}>
                     <td>{row.method}</td>
+                    <td>{row.amount.toLocaleString()}</td>
                     <td>
-                      <input
-                        style={inputStyle}
-                        value={row.amount}
-                        onChange={(e) =>
-                          setRows(
-                            "revenueLines",
-                            report.revenueLines.map((r, j) => (j === i ? { ...r, amount: Number(e.target.value) || 0 } : r)),
-                          )
-                        }
+                      <RowActions
+                        dateKey={dateKey}
+                        kind="revenue"
+                        rowId={row.id}
+                        label={row.method}
+                        busy={busyId === row.id}
+                        onDelete={() => setConfirming({ kind: "revenue", id: row.id, label: row.method })}
                       />
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="delete"
-                        aria-label="Remove row"
-                        onClick={() => setRows("revenueLines", report.revenueLines.filter((_, j) => j !== i))}
-                      >
-                        ×
-                      </button>
                     </td>
                   </tr>
                 ))}
@@ -130,7 +116,7 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
         </section>
       )}
 
-      {report.expenseLines.length > 0 && (
+      {initial.expenseLines.length > 0 && (
         <section style={{ marginBottom: 18 }}>
           <h2>Expense</h2>
           <div className="table-wrap">
@@ -140,46 +126,24 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
                   <th>Category</th>
                   <th>Name</th>
                   <th>Amount</th>
-                  <th />
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {report.expenseLines.map((row, i) => (
-                  <tr key={i}>
+                {initial.expenseLines.map((row) => (
+                  <tr key={row.id}>
                     <td>{row.category}</td>
+                    <td>{row.name ?? "—"}</td>
+                    <td>{row.amount.toLocaleString()}</td>
                     <td>
-                      <input
-                        style={inputStyle}
-                        value={row.name ?? ""}
-                        onChange={(e) =>
-                          setRows(
-                            "expenseLines",
-                            report.expenseLines.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)),
-                          )
-                        }
+                      <RowActions
+                        dateKey={dateKey}
+                        kind={row.category === "WAGES" ? "wage" : "expense"}
+                        rowId={row.id}
+                        label={row.name ?? row.category}
+                        busy={busyId === row.id}
+                        onDelete={() => setConfirming({ kind: "expense", id: row.id, label: row.name ?? row.category })}
                       />
-                    </td>
-                    <td>
-                      <input
-                        style={inputStyle}
-                        value={row.amount}
-                        onChange={(e) =>
-                          setRows(
-                            "expenseLines",
-                            report.expenseLines.map((r, j) => (j === i ? { ...r, amount: Number(e.target.value) || 0 } : r)),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="delete"
-                        aria-label="Remove row"
-                        onClick={() => setRows("expenseLines", report.expenseLines.filter((_, j) => j !== i))}
-                      >
-                        ×
-                      </button>
                     </td>
                   </tr>
                 ))}
@@ -189,67 +153,34 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
         </section>
       )}
 
-      {report.maintenanceLines.length > 0 && (
+      {initial.maintenanceLines.length > 0 && (
         <section style={{ marginBottom: 18 }}>
           <h2>Maintenance</h2>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Vehicle</th>
+                  <th>Vehicle / Ship</th>
                   <th>Part</th>
                   <th>Amount</th>
-                  <th />
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {report.maintenanceLines.map((row, i) => (
-                  <tr key={i}>
+                {initial.maintenanceLines.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.vehicle}</td>
+                    <td>{row.part ?? "—"}</td>
+                    <td>{row.amount.toLocaleString()}</td>
                     <td>
-                      <input
-                        style={inputStyle}
-                        value={row.vehicle}
-                        onChange={(e) =>
-                          setRows(
-                            "maintenanceLines",
-                            report.maintenanceLines.map((r, j) => (j === i ? { ...r, vehicle: e.target.value } : r)),
-                          )
-                        }
+                      <RowActions
+                        dateKey={dateKey}
+                        kind="maintenance"
+                        rowId={row.id}
+                        label={row.vehicle}
+                        busy={busyId === row.id}
+                        onDelete={() => setConfirming({ kind: "maintenance", id: row.id, label: row.vehicle })}
                       />
-                    </td>
-                    <td>
-                      <input
-                        style={inputStyle}
-                        value={row.part ?? ""}
-                        onChange={(e) =>
-                          setRows(
-                            "maintenanceLines",
-                            report.maintenanceLines.map((r, j) => (j === i ? { ...r, part: e.target.value } : r)),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        style={inputStyle}
-                        value={row.amount}
-                        onChange={(e) =>
-                          setRows(
-                            "maintenanceLines",
-                            report.maintenanceLines.map((r, j) => (j === i ? { ...r, amount: Number(e.target.value) || 0 } : r)),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="delete"
-                        aria-label="Remove row"
-                        onClick={() => setRows("maintenanceLines", report.maintenanceLines.filter((_, j) => j !== i))}
-                      >
-                        ×
-                      </button>
                     </td>
                   </tr>
                 ))}
@@ -259,7 +190,7 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
         </section>
       )}
 
-      {report.fuelEntries.length > 0 && (
+      {initial.fuelEntries.length > 0 && (
         <section style={{ marginBottom: 18 }}>
           <h2>Fuel (gal)</h2>
           <div className="table-wrap">
@@ -271,56 +202,26 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
                   <th>Out</th>
                   <th>Balance</th>
                   <th>OK</th>
-                  <th />
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {report.fuelEntries.map((row, i) => (
-                  <tr key={i}>
-                    <td>
-                      <input
-                        style={inputStyle}
-                        value={row.particular ?? ""}
-                        onChange={(e) =>
-                          setRows(
-                            "fuelEntries",
-                            report.fuelEntries.map((r, j) => (j === i ? { ...r, particular: e.target.value } : r)),
-                          )
-                        }
-                      />
-                    </td>
-                    {(
-                      [
-                        ["inGal", row.inGal],
-                        ["outGal", row.outGal],
-                        ["balanceGal", row.balanceGal],
-                      ] as const
-                    ).map(([field, value]) => (
-                      <td key={field}>
-                        <input
-                          style={inputStyle}
-                          value={value ?? ""}
-                          onChange={(e) =>
-                            setRows(
-                              "fuelEntries",
-                              report.fuelEntries.map((r, j) =>
-                                j === i ? { ...r, [field]: e.target.value === "" ? null : Number(e.target.value) || 0 } : r,
-                              ),
-                            )
-                          }
-                        />
-                      </td>
-                    ))}
+                {initial.fuelEntries.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.particular ?? "—"}</td>
+                    <td>{row.inGal?.toString() ?? "—"}</td>
+                    <td>{row.outGal?.toString() ?? "—"}</td>
+                    <td>{row.balanceGal?.toString() ?? "—"}</td>
                     <td>{row.balanceOk === null ? "—" : row.balanceOk ? "✓" : "✗"}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="delete"
-                        aria-label="Remove row"
-                        onClick={() => setRows("fuelEntries", report.fuelEntries.filter((_, j) => j !== i))}
-                      >
-                        ×
-                      </button>
+                      <RowActions
+                        dateKey={dateKey}
+                        kind="fuel"
+                        rowId={row.id}
+                        label={row.particular ?? "fuel entry"}
+                        busy={busyId === row.id}
+                        onDelete={() => setConfirming({ kind: "fuel", id: row.id, label: row.particular ?? "fuel entry" })}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -330,7 +231,7 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
         </section>
       )}
 
-      {report.brickEntries.length > 0 && (
+      {initial.brickEntries.length > 0 && (
         <section style={{ marginBottom: 18 }}>
           <h2>Brick</h2>
           <div className="table-wrap">
@@ -341,55 +242,25 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
                   <th>Qty</th>
                   <th>Unit price</th>
                   <th>Amount</th>
-                  <th />
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {report.brickEntries.map((row, i) => (
-                  <tr key={i}>
+                {initial.brickEntries.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.item}</td>
+                    <td>{row.qty?.toString() ?? "—"}</td>
+                    <td>{fmt(row.unitPrice)}</td>
+                    <td>{fmt(row.amount)}</td>
                     <td>
-                      <input
-                        style={inputStyle}
-                        value={row.item}
-                        onChange={(e) =>
-                          setRows(
-                            "brickEntries",
-                            report.brickEntries.map((r, j) => (j === i ? { ...r, item: e.target.value } : r)),
-                          )
-                        }
+                      <RowActions
+                        dateKey={dateKey}
+                        kind="brick"
+                        rowId={row.id}
+                        label={row.item}
+                        busy={busyId === row.id}
+                        onDelete={() => setConfirming({ kind: "brick", id: row.id, label: row.item })}
                       />
-                    </td>
-                    {(
-                      [
-                        ["qty", row.qty],
-                        ["unitPrice", row.unitPrice],
-                        ["amount", row.amount],
-                      ] as const
-                    ).map(([field, value]) => (
-                      <td key={field}>
-                        <input
-                          style={inputStyle}
-                          value={value ?? ""}
-                          onChange={(e) =>
-                            setRows(
-                              "brickEntries",
-                              report.brickEntries.map((r, j) =>
-                                j === i ? { ...r, [field]: e.target.value === "" ? null : Number(e.target.value) || 0 } : r,
-                              ),
-                            )
-                          }
-                        />
-                      </td>
-                    ))}
-                    <td>
-                      <button
-                        type="button"
-                        className="delete"
-                        aria-label="Remove row"
-                        onClick={() => setRows("brickEntries", report.brickEntries.filter((_, j) => j !== i))}
-                      >
-                        ×
-                      </button>
                     </td>
                   </tr>
                 ))}
@@ -398,6 +269,52 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
           </div>
         </section>
       )}
+
+      <Modal
+        open={confirming !== null}
+        title={`Delete ${confirming?.label ?? "row"}?`}
+        body="This cannot be undone. Source photos are kept."
+        confirmLabel="Delete"
+        danger
+        busy={busyId !== null}
+        onConfirm={() => {
+          if (confirming) void removeRow(confirming.kind, confirming.id);
+        }}
+        onCancel={() => {
+          if (busyId === null) setConfirming(null);
+        }}
+      />
     </div>
+  );
+}
+
+function RowActions({
+  dateKey,
+  kind,
+  rowId,
+  label,
+  busy,
+  onDelete,
+}: {
+  dateKey: string;
+  kind: "revenue" | "expense" | "wage" | "maintenance" | "fuel" | "brick";
+  rowId: string;
+  label: string;
+  busy: boolean;
+  onDelete: () => void;
+}) {
+  return (
+    <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+      <RowEditModal dateKey={dateKey} kind={kind} rowId={rowId} />
+      <button
+        type="button"
+        className="delete"
+        aria-label={`Delete ${label}`}
+        disabled={busy}
+        onClick={onDelete}
+      >
+        ×
+      </button>
+    </span>
   );
 }

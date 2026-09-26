@@ -11,6 +11,7 @@ import {
   getFileInfoFromMessage,
 } from "../../../../lib/telegram/client";
 import { finalizeReportMessages } from "../../../../lib/telegram/notify";
+import { deleteReportCascade } from "../../../../lib/reports";
 import {
   buildLedgerMenuButtons,
   getFormatPromptForMode,
@@ -883,22 +884,36 @@ async function handleApproval(
     return;
   }
 
+  if (!approve) {
+    // Reject = delete everything. Finalize first (it looks messages up by
+    // reportId), then cascade-delete. Staff re-sends the photo to correct it.
+    await finalizeReportMessages({ botToken, reportId, approved: false });
+    await deleteReportCascade(reportId);
+    await editTelegramMessage({
+      botToken, chatId, messageId,
+      text: `❌ <b>REJECTED — data ဖျက်ပြီးပါပြီ</b>\nReport: ${reportId}`,
+      replyMarkup: { inline_keyboard: [] },
+    });
+    await answerCallbackQuery(botToken, queryId, "Rejected — data deleted");
+    return;
+  }
+
   await prisma.dailyReport.update({
     where: { id: reportId },
-    data: { status: approve ? "CONFIRMED" : "NEEDS_REVIEW" },
+    data: { status: "CONFIRMED" },
   });
   await prisma.telegramMessage.updateMany({
     where: { reportId },
-    data: { status: approve ? "confirmed" : "rejected" },
+    data: { status: "confirmed" },
   });
-  const label = approve ? "✅ <b>CONFIRMED</b>" : "❌ <b>REJECTED — ပြန်တင်ပေးပါ</b>";
+  const label = "✅ <b>CONFIRMED</b>";
   await editTelegramMessage({
     botToken, chatId, messageId,
     text: `${label}\nReport: ${reportId}`,
     replyMarkup: { inline_keyboard: [] },
   });
-  await answerCallbackQuery(botToken, queryId, approve ? "Approved" : "Rejected");
+  await answerCallbackQuery(botToken, queryId, "Approved");
 
   // Resolve stale bot notes in place (⏳ → final), fresh message as fallback.
-  await finalizeReportMessages({ botToken, reportId, approved: approve });
+  await finalizeReportMessages({ botToken, reportId, approved: true });
 }

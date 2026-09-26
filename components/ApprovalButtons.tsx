@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Modal } from "./Modal";
 
 export function ApprovalButtons({ reportId }: { reportId: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const [confirmingReject, setConfirmingReject] = useState(false);
 
   async function act(action: "approve" | "reject") {
     setBusy(true);
@@ -22,6 +24,7 @@ export function ApprovalButtons({ reportId }: { reportId: string }) {
       if (data.telegramUpdated === false) {
         setNote("Saved, but Telegram update failed — check bot status.");
       }
+      if (action === "reject") setConfirmingReject(false);
       // The sidebar badge caches the pending count per pathname — tell it to refetch.
       window.dispatchEvent(new CustomEvent("pending-changed"));
       router.refresh();
@@ -37,7 +40,7 @@ export function ApprovalButtons({ reportId }: { reportId: string }) {
       <button type="button" disabled={busy} onClick={() => act("approve")}>
         ✅ Approve
       </button>
-      <button type="button" className="danger-button" disabled={busy} onClick={() => act("reject")}>
+      <button type="button" className="danger-button" disabled={busy} onClick={() => setConfirmingReject(true)}>
         ❌ Reject
       </button>
       {note && (
@@ -45,6 +48,18 @@ export function ApprovalButtons({ reportId }: { reportId: string }) {
           {note}
         </span>
       )}
+      <Modal
+        open={confirmingReject}
+        title="Reject and delete this report?"
+        body="All extracted lines and photos for this day will be deleted. Staff must re-send the photo to correct it."
+        confirmLabel="Reject & delete"
+        danger
+        busy={busy}
+        onConfirm={() => act("reject")}
+        onCancel={() => {
+          if (!busy) setConfirmingReject(false);
+        }}
+      />
     </div>
   );
 }

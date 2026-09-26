@@ -18,7 +18,6 @@ export default async function ApprovalsPage() {
       maintenanceLines: true,
       fuelEntries: true,
       brickEntries: true,
-      _count: { select: { images: true } },
     },
   });
 
@@ -45,28 +44,26 @@ export default async function ApprovalsPage() {
                     <b>{dateKey}</b>
                     <StatusPill status={report.status} />
                   </div>
-                  <p className="muted" style={{ margin: "4px 0" }}>
-                    {report._count.images} photo(s) · rev {Number(report.totalRevenue).toLocaleString()} / exp{" "}
-                    {Number(report.totalExpense).toLocaleString()} · {report.fuelEntries.length + report.brickEntries.length}{" "}
-                    fuel/brick rows
-                  </p>
                   <ReportEditor
                     dateKey={dateKey}
                     initial={{
                       status: report.status,
-                      revenueLines: report.revenueLines.map((row) => ({ method: row.method, amount: Number(row.amount) })),
+                      revenueLines: report.revenueLines.map((row) => ({ id: row.id, method: row.method, amount: Number(row.amount) })),
                       expenseLines: report.expenseLines.map((row) => ({
+                        id: row.id,
                         category: row.category,
                         name: row.name,
                         role: row.role,
                         amount: Number(row.amount),
                       })),
                       maintenanceLines: report.maintenanceLines.map((row) => ({
+                        id: row.id,
                         vehicle: row.vehicle,
                         amount: Number(row.amount),
                         part: row.part,
                       })),
                       fuelEntries: report.fuelEntries.map((row) => ({
+                        id: row.id,
                         particular: row.particular,
                         date: row.date ? row.date.toISOString().slice(0, 10) : null,
                         inGal: row.inGal === null ? null : Number(row.inGal),
@@ -75,6 +72,7 @@ export default async function ApprovalsPage() {
                         balanceOk: row.balanceOk,
                       })),
                       brickEntries: report.brickEntries.map((row) => ({
+                        id: row.id,
                         item: row.item,
                         date: row.date ? row.date.toISOString().slice(0, 10) : null,
                         qty: row.qty === null ? null : Number(row.qty),
