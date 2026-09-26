@@ -7,6 +7,8 @@ import { Modal } from "./Modal";
 type BotSettings = {
   botToken: string;
   geminiApiKey: string;
+  keyCount: number;
+  keyTails: string[];
   geminiModel: string;
   isActive: boolean;
   usingEnvFallback: boolean;
@@ -91,19 +93,29 @@ export function SettingsManager() {
     };
   }, []);
 
-  const token = tokenDraft ?? settings?.botToken ?? "";
-  const key = keyDraft ?? settings?.geminiApiKey ?? "";
   const dirty = tokenDraft !== null || keyDraft !== null;
 
   async function saveBot() {
     setBusy(true);
     setError("");
     setMessage("");
+    // Masked values (•) can never be extended — the server would discard the
+    // whole field as "unchanged". Force a full re-paste instead of a silent skip.
+    if ((tokenDraft ?? "").includes("•") || (keyDraft ?? "").includes("•")) {
+      setBusy(false);
+      setError("Secret fields show masked values — clear the field and paste the FULL value (all keys, comma-separated).");
+      return;
+    }
     try {
       const response = await fetch("/api/settings/bot", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ botToken: token, geminiApiKey: key, geminiModel: model }),
+        // Omit untouched secrets entirely — sending "" would clear them.
+        body: JSON.stringify({
+          ...(tokenDraft !== null ? { botToken: tokenDraft } : {}),
+          ...(keyDraft !== null ? { geminiApiKey: keyDraft } : {}),
+          geminiModel: model,
+        }),
       });
       const data = (await response.json()) as {
         message?: string;
@@ -225,13 +237,32 @@ export function SettingsManager() {
           )}
           <div className="auth-form" style={{ maxWidth: 520 }}>
             <label className="muted">
-              Bot token <small>(BotFather — masked, paste to replace)</small>
-              <input value={token} onChange={(e) => setTokenDraft(e.target.value)} placeholder="123456:ABC-..." autoComplete="off" />
+              Bot token <small>(BotFather — paste to replace)</small>
+              <input
+                value={tokenDraft ?? ""}
+                onChange={(e) => setTokenDraft(e.target.value)}
+                placeholder={settings?.botToken ? `${settings.botToken} — paste to replace` : "123456:ABC-..."}
+                autoComplete="off"
+              />
             </label>
             <label className="muted">
-              Gemini API key <small>(comma-separated for rotation: key1, key2)</small>
-              <input value={key} onChange={(e) => setKeyDraft(e.target.value)} placeholder="AI…" autoComplete="off" />
+              Gemini API key <small>(comma-separated for rotation: key1, key2 — saving replaces ALL keys)</small>
+              <input
+                value={keyDraft ?? ""}
+                onChange={(e) => setKeyDraft(e.target.value)}
+                placeholder={
+                  settings?.geminiApiKey
+                    ? `${settings.geminiApiKey} — paste ALL keys to replace`
+                    : "AI…"
+                }
+                autoComplete="off"
+              />
             </label>
+            {settings && settings.keyCount > 0 && (
+              <p className="muted" style={{ margin: 0 }}>
+                {settings.keyCount} key{settings.keyCount === 1 ? "" : "s"} saved ({settings.keyTails.map((tail) => `…${tail}`).join(", ")})
+              </p>
+            )}
             <label className="muted">
               Gemini model
               <input value={model} onChange={(e) => setModel(e.target.value)} />

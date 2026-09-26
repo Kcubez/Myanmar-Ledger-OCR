@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "../../../../lib/prisma";
 import { requireOwner } from "../../../../lib/require-owner";
+import { parseKeyList } from "../../../../lib/extract/shared";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,12 @@ const DEFAULT_MODEL = "gemini-3.5-flash";
 function maskSecret(value: string | null | undefined): string {
   if (!value) return "";
   return value.length <= 4 ? "••••" : `••••••••${value.slice(-4)}`;
+}
+
+/** Per-key inventory (count + last-4 tails) so the UI can show what's stored. */
+function keyMeta(value: string | null | undefined): { keyCount: number; keyTails: string[] } {
+  const keys = parseKeyList(value);
+  return { keyCount: keys.length, keyTails: keys.map((key) => key.slice(-4)) };
 }
 
 function unchanged(value: string | undefined): boolean {
@@ -22,10 +29,13 @@ export async function GET(req: NextRequest) {
   if (guard.error) return guard.error;
 
   const settings = await prisma.botSettings.findUnique({ where: { userId: guard.session.user.id } });
+  const keys = keyMeta(settings?.geminiApiKey);
   return NextResponse.json({
     settings: {
       botToken: maskSecret(settings?.botToken),
       geminiApiKey: maskSecret(settings?.geminiApiKey),
+      keyCount: keys.keyCount,
+      keyTails: keys.keyTails,
       geminiModel: settings?.geminiModel ?? DEFAULT_MODEL,
       isActive: settings?.isActive ?? false,
       updatedAt: settings?.updatedAt ?? null,
@@ -100,6 +110,8 @@ export async function PUT(req: NextRequest) {
     settings: {
       botToken: maskSecret(settings.botToken),
       geminiApiKey: maskSecret(settings.geminiApiKey),
+      keyCount: keyMeta(settings.geminiApiKey).keyCount,
+      keyTails: keyMeta(settings.geminiApiKey).keyTails,
       geminiModel: settings.geminiModel,
       isActive: settings.isActive,
       updatedAt: settings.updatedAt,
