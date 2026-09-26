@@ -48,8 +48,44 @@ export async function answerCallbackQuery(
   }).catch((err) => console.error("Error answering callback:", err));
 }
 
-export async function editTelegramMessage({
+/**
+ * Remove (or replace) a message's inline buttons without touching its text.
+ * Pass an empty keyboard to strip buttons after a terminal button tap.
+ */
+export async function editMessageButtons({
   botToken,
+  chatId,
+  messageId,
+  inlineKeyboard = [],
+}: {
+  botToken: string | null | undefined;
+  chatId: bigint | number | string;
+  messageId: number;
+  inlineKeyboard?: unknown[][];
+}): Promise<boolean> {
+  if (!botToken) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/editMessageReplyMarkup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId.toString(),
+        message_id: messageId,
+        reply_markup: { inline_keyboard: inlineKeyboard },
+      }),
+    });
+    if (!res.ok) {
+      console.error("Error editing Telegram buttons:", await res.text());
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("Error editing Telegram buttons:", err);
+    return false;
+  }
+}
+
+export async function editTelegramMessage({  botToken,
   chatId,
   messageId,
   text,

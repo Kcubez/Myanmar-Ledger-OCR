@@ -6,6 +6,7 @@ import {
   sendTelegramMessage,
   answerCallbackQuery,
   editTelegramMessage,
+  editMessageButtons,
   downloadTelegramFile,
   getFileInfoFromMessage,
 } from "../../../../lib/telegram/client";
@@ -417,7 +418,7 @@ async function handleCallback(
   }
 
   if (data.startsWith("confirm:")) {
-    await handleSubmitterConfirm(botToken, sender, chatId, queryId, data.replace("confirm:", ""));
+    await handleSubmitterConfirm(botToken, sender, chatId, messageId, queryId, data.replace("confirm:", ""));
     return;
   }
 
@@ -794,6 +795,7 @@ async function handleSubmitterConfirm(
   botToken: string,
   sender: { id: string; telegramUserId: bigint | null },
   chatId: number,
+  messageId: number,
   queryId: string,
   reportId: string,
 ) {
@@ -803,10 +805,12 @@ async function handleSubmitterConfirm(
   });
   if (!report) {
     await answerCallbackQuery(botToken, queryId, "Report not found");
+    await editMessageButtons({ botToken, chatId, messageId });
     return;
   }
   if (report.status === "CONFIRMED") {
     await answerCallbackQuery(botToken, queryId, "Already confirmed");
+    await editMessageButtons({ botToken, chatId, messageId });
     return;
   }
   const full = await prisma.telegramSender.findUnique({ where: { id: sender.id } });
@@ -814,10 +818,20 @@ async function handleSubmitterConfirm(
     await prisma.dailyReport.update({ where: { id: reportId }, data: { status: "CONFIRMED" } });
     await prisma.telegramMessage.updateMany({ where: { reportId }, data: { status: "confirmed" } });
     await answerCallbackQuery(botToken, queryId, "Confirmed");
+    await editMessageButtons({ botToken, chatId, messageId });
     await sendTelegramMessage({ botToken, chatId, text: "✅ <b>CONFIRMED</b> — dashboard မှာ မြင်ရပါပြီ။" });
     return;
   }
   // Submitter confirm = request approval; approvers already notified at submit.
+  // Strip the button first so repeat taps can't spam ⏳ messages.
+  await editMessageButtons({ botToken, chatId, messageId });
+  const alreadyRequested = report.telegramMessages.length > 0 &&
+    report.telegramMessages.every((message) => message.status === "approval_requested");
+  if (alreadyRequested) {
+    await answerCallbackQuery(botToken, queryId, "Already sent for approval");
+    return;
+  }
+  await prisma.telegramMessage.updateMany({ where: { reportId }, data: { status: "approval_requested" } });
   await answerCallbackQuery(botToken, queryId, "Sent for approval");
   await sendTelegramMessage({ botToken, chatId, text: "⏳ Approver အတည်ပြုချက်စောင့်နေပါသည်။" });
 }
@@ -866,7 +880,11 @@ async function handleApproval(
     data: { status: approve ? "confirmed" : "rejected" },
   });
   const label = approve ? "✅ <b>CONFIRMED</b>" : "❌ <b>REJECTED — ပြန်တင်ပေးပါ</b>";
-  await editTelegramMessage({ botToken, chatId, messageId, text: `${label}\nReport: ${reportId}` });
+  await editTelegramMessage({
+    botToken, chatId, messageId,
+    text: `${label}\nReport: ${reportId}`,
+    replyMarkup: { inline_keyboard: [] },
+  });
   await answerCallbackQuery(botToken, queryId, approve ? "Approved" : "Rejected");
 
   // Notify the submitter chat(s).

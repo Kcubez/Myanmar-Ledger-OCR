@@ -19,19 +19,23 @@ export default async function DashboardPage({
   const range = parseDateFilter(await searchParams);
   const where = rangeWhere(range);
 
+  // Dashboards show CONFIRMED data only — PENDING/NEEDS_REVIEW reports live
+  // in Approvals until reviewed. The pending card + review button below are
+  // the pointer there.
+  const confirmed = { status: "CONFIRMED" } as const;
   const [reports, revenueAgg, expenseAgg, pendingCount] = await Promise.all([
     prisma.dailyReport.findMany({
-      where: { date: where },
+      where: { date: where, ...confirmed },
       orderBy: { date: "asc" },
     }),
     prisma.revenueLine.groupBy({
       by: ["method"],
-      where: { report: { date: where } },
+      where: { report: { date: where, ...confirmed } },
       _sum: { amount: true },
     }),
     prisma.expenseLine.groupBy({
       by: ["category"],
-      where: { report: { date: where } },
+      where: { report: { date: where, ...confirmed } },
       _sum: { amount: true },
     }),
     prisma.dailyReport.count({ where: { status: { in: ["PENDING", "NEEDS_REVIEW"] } } }),

@@ -17,25 +17,27 @@ export default async function BrickPage({
   const range = parseDateFilter(await searchParams);
   const where = rangeWhere(range);
 
+  // CONFIRMED only — pending reports are reviewed in Approvals first.
+  const confirmed = { status: "CONFIRMED" } as const;
   const [byItem, lowConfidence, recent, entryCount] = await Promise.all([
     prisma.brickEntry.groupBy({
       by: ["item"],
-      where: { report: { date: where } },
+      where: { report: { date: where, ...confirmed } },
       _sum: { amount: true, qty: true },
     }),
     prisma.brickEntry.findMany({
-      where: { report: { date: where }, OR: [{ confidence: { lt: 0.5 } }, { confidence: null }] },
+      where: { report: { date: where, ...confirmed }, OR: [{ confidence: { lt: 0.5 } }, { confidence: null }] },
       orderBy: { id: "desc" },
       take: 20,
       include: { report: { select: { date: true } } },
     }),
     prisma.brickEntry.findMany({
-      where: { report: { date: where } },
+      where: { report: { date: where, ...confirmed } },
       orderBy: { id: "asc" },
       take: 30,
       include: { report: { select: { date: true } } },
     }),
-    prisma.brickEntry.count({ where: { report: { date: where } } }),
+    prisma.brickEntry.count({ where: { report: { date: where, ...confirmed } } }),
   ]);
 
   const totalAmount = byItem.reduce((s, row) => s + Number(row._sum.amount ?? 0), 0);

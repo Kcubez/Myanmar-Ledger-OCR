@@ -18,25 +18,27 @@ export default async function FuelPage({
   const range = parseDateFilter(await searchParams);
   const where = rangeWhere(range);
 
+  // CONFIRMED only — pending reports are reviewed in Approvals first.
+  const confirmed = { status: "CONFIRMED" } as const;
   const [byParticular, mismatches, recent, entryCount] = await Promise.all([
     prisma.fuelEntry.groupBy({
       by: ["particular"],
-      where: { report: { date: where } },
+      where: { report: { date: where, ...confirmed } },
       _sum: { inGal: true, outGal: true },
     }),
     prisma.fuelEntry.findMany({
-      where: { balanceOk: false, report: { date: where } },
+      where: { balanceOk: false, report: { date: where, ...confirmed } },
       orderBy: { id: "desc" },
       take: 20,
       include: { report: { select: { date: true } } },
     }),
     prisma.fuelEntry.findMany({
-      where: { report: { date: where } },
+      where: { report: { date: where, ...confirmed } },
       orderBy: { id: "asc" },
       take: 30,
       include: { report: { select: { date: true } } },
     }),
-    prisma.fuelEntry.count({ where: { report: { date: where } } }),
+    prisma.fuelEntry.count({ where: { report: { date: where, ...confirmed } } }),
   ]);
 
   const totalIn = byParticular.reduce((s, row) => s + Number(row._sum.inGal ?? 0), 0);

@@ -17,19 +17,21 @@ export default async function MaintenancePage({
   const range = parseDateFilter(await searchParams);
   const where = rangeWhere(range);
 
+  // CONFIRMED only — pending reports are reviewed in Approvals first.
+  const confirmed = { status: "CONFIRMED" } as const;
   const [byVehicle, recent, entryCount] = await Promise.all([
     prisma.maintenanceLine.groupBy({
       by: ["vehicle"],
-      where: { report: { date: where } },
+      where: { report: { date: where, ...confirmed } },
       _sum: { amount: true },
     }),
     prisma.maintenanceLine.findMany({
-      where: { report: { date: where } },
+      where: { report: { date: where, ...confirmed } },
       orderBy: [{ report: { date: "asc" } }, { id: "asc" }],
       take: 50,
       include: { report: { select: { date: true } } },
     }),
-    prisma.maintenanceLine.count({ where: { report: { date: where } } }),
+    prisma.maintenanceLine.count({ where: { report: { date: where, ...confirmed } } }),
   ]);
 
   const totalSpend = byVehicle.reduce((s, row) => s + Number(row._sum.amount ?? 0), 0);
