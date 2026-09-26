@@ -23,10 +23,15 @@ export default async function DashboardPage({
   // in Approvals until reviewed. The pending card + review button below are
   // the pointer there.
   const confirmed = { status: "CONFIRMED" } as const;
-  const [reports, revenueAgg, expenseAgg, pendingCount] = await Promise.all([
+  const [reportRows, revenueAgg, expenseAgg, pendingCount] = await Promise.all([
     prisma.dailyReport.findMany({
       where: { date: where, ...confirmed },
       orderBy: { date: "asc" },
+      include: {
+        _count: {
+          select: { revenueLines: true, expenseLines: true, maintenanceLines: true, fuelEntries: true, brickEntries: true },
+        },
+      },
     }),
     prisma.revenueLine.groupBy({
       by: ["method"],
@@ -41,6 +46,14 @@ export default async function DashboardPage({
     prisma.dailyReport.count({ where: { status: { in: ["PENDING", "NEEDS_REVIEW"] } } }),
   ]);
 
+  // Days whose lines were all deleted vanish from the dashboard (stats,
+  // trend, and Recent table stay consistent — one filtered array).
+  const reports = reportRows.filter((report) => {
+    const counts = report._count;
+    return (
+      counts.revenueLines + counts.expenseLines + counts.maintenanceLines + counts.fuelEntries + counts.brickEntries > 0
+    );
+  });
   const totalRevenue = reports.reduce((s, r) => s + Number(r.totalRevenue), 0);
   const totalExpense = reports.reduce((s, r) => s + Number(r.totalExpense), 0);
   const net = totalRevenue - totalExpense;

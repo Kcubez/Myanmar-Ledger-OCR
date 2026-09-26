@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Modal } from "./Modal";
 
 /**
- * Range-scoped bulk delete for fuel/brick pages. The server page passes the
+ * Range-scoped bulk delete for ledger pages. The server page passes the
  * active filter range + entry count; the button confirms via Modal and
  * refreshes after deletion.
  */
@@ -17,7 +17,7 @@ export function DeleteRangeButton({
   gte,
   lte,
 }: {
-  kind: "fuel" | "brick";
+  kind: "fuel" | "brick" | "revenue" | "expense";
   kindLabel: string;
   count: number;
   scopeLabel: string;

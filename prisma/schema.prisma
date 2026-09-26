@@ -284,6 +284,9 @@ model TelegramMessage {
   ledgerType LedgerType?  @map("ledger_type")
   status     String       @default("received")
   error      String?
+  // Bot's own reply (summary / ⏳ / ✅) to this message — lets approval flows
+  // edit it in place later. Null for legacy rows and non-bot messages.
+  botReplyMessageId Int?  @map("bot_reply_message_id")
   createdAt  DateTime     @default(now()) @map("created_at")
 
   @@unique([chatId, messageId])

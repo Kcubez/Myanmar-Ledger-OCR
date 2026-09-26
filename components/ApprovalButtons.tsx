@@ -16,6 +16,8 @@ export function ApprovalButtons({ reportId }: { reportId: string }) {
         body: JSON.stringify({ reportId, action }),
       });
       if (!response.ok) throw new Error("Action failed.");
+      // The sidebar badge caches the pending count per pathname — tell it to refetch.
+      window.dispatchEvent(new CustomEvent("pending-changed"));
       router.refresh();
     } finally {
       setBusy(false);

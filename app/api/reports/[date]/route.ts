@@ -3,6 +3,7 @@ import { prisma } from "../../../../lib/prisma";
 import { requireOwner } from "../../../../lib/require-owner";
 import { parseDateParam } from "../../../../lib/reports";
 import { extractContentDate } from "../../../../lib/report-date";
+import { finalizeReportMessages } from "../../../../lib/telegram/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 // All-or-nothing via $transaction: a crash mid-replace must never leave
 // deleted-but-not-reinserted lines behind.
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  const { error } = await requireOwner(req);
+  const { error, session } = await requireOwner(req);
   if (error) return error;
   const date = parseDateParam((await ctx.params).date);
   if (!date) return NextResponse.json({ message: "Invalid date (yyyy-mm-dd)" }, { status: 400 });
@@ -178,6 +179,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
     return next;
   });
+
+  // Status changes from the editor resolve stale Telegram notes too, same as /api/approvals.
+  if (status && (status === "CONFIRMED" || status === "NEEDS_REVIEW")) {
+    void finalizeReportMessages({ ownerUserId: session.user.id, reportId, approved: status === "CONFIRMED" }).catch(
+      (notifyError) => console.error("Editor approval Telegram notify failed:", notifyError),
+    );
+  }
 
   return NextResponse.json({
     report: JSON.parse(JSON.stringify(updated, (_key, value) => (typeof value === "bigint" ? Number(value) : value))),

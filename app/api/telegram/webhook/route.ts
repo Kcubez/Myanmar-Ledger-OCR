@@ -10,6 +10,7 @@ import {
   downloadTelegramFile,
   getFileInfoFromMessage,
 } from "../../../../lib/telegram/client";
+import { finalizeReportMessages } from "../../../../lib/telegram/notify";
 import {
   buildLedgerMenuButtons,
   getFormatPromptForMode,
@@ -549,7 +550,7 @@ async function processPhoto(
     mode === "fuel" || mode === "brick"
       ? `\n➕ ${added} rows added${skipped ? ` (${skipped} dupes skipped)` : ""}`
       : `\n♻️ ဒီနေ့ရဲ့ ${ledgerLabel(mode)} အဟောင်းလိုင်းများ အစားထိုးမည်`;
-  await sendTelegramMessage({
+  const summaryMsg = await sendTelegramMessage({
     botToken,
     chatId,
     text: `${extracted.summary}\n\n📅 ${key} report ${autoConfirm ? "✅ <b>CONFIRMED</b>" : "⏳ <b>PENDING</b> — အတည်ပြုရန် Confirm နှိပ်ပါ"}${mergeNote}`,
@@ -557,6 +558,12 @@ async function processPhoto(
       ? undefined
       : { inline_keyboard: [[{ text: "✅ Confirm", callback_data: `confirm:${report.id}` }]] },
   });
+  // Remember the bot's reply so approval flows can edit it in place later.
+  if (summaryMsg) {
+    await prisma.telegramMessage
+      .updateMany({ where: { chatId, messageId }, data: { botReplyMessageId: summaryMsg.message_id } })
+      .catch((error) => console.error("Failed to store bot reply id:", error));
+  }
 
   if (!autoConfirm && ownerUserId) {
     const approvers = await getApprovers(senderId, ownerUserId);
@@ -833,7 +840,12 @@ async function handleSubmitterConfirm(
   }
   await prisma.telegramMessage.updateMany({ where: { reportId }, data: { status: "approval_requested" } });
   await answerCallbackQuery(botToken, queryId, "Sent for approval");
-  await sendTelegramMessage({ botToken, chatId, text: "⏳ Approver အတည်ပြုချက်စောင့်နေပါသည်။" });
+  const waitingMsg = await sendTelegramMessage({ botToken, chatId, text: "⏳ Approver အတည်ပြုချက်စောင့်နေပါသည်။" });
+  if (waitingMsg) {
+    await prisma.telegramMessage
+      .updateMany({ where: { reportId }, data: { botReplyMessageId: waitingMsg.message_id } })
+      .catch((error) => console.error("Failed to store bot reply id:", error));
+  }
 }
 
 function isOwnSubmission(
@@ -887,11 +899,6 @@ async function handleApproval(
   });
   await answerCallbackQuery(botToken, queryId, approve ? "Approved" : "Rejected");
 
-  // Notify the submitter chat(s).
-  const chats = [...new Set(report.telegramMessages.map((message: { chatId: string }) => message.chatId))];
-  await Promise.all(
-    chats.map((target) =>
-      sendTelegramMessage({ botToken, chatId: target, text: `${label}\nသင့်တင်ထားသော report.` }),
-    ),
-  );
+  // Resolve stale bot notes in place (⏳ → final), fresh message as fallback.
+  await finalizeReportMessages({ botToken, reportId, approved: approve });
 }

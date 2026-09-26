@@ -33,7 +33,7 @@ Common per extraction: `{confidence 0–1, unreadable_fields[]}`. Unclear values
 
 ## 5. Dashboard (web upload REMOVED, Telegram-only input)
 - Login: email/password (Better Auth), single admin; session-guarded routes.
-- Pages: Overview (revenue vs expense line, payment-split donut, OPEX bar), Fuel (in/out per particular bar, per-row edit/delete), Brick (qty/amount by item), Maintenance (spend per vehicle/ship bar, per-row edit/delete), Daily detail (original photo + editable parsed tables + totals recalc), Approvals queue (pending/confirmed/rejected).
+- Pages: Overview (revenue vs expense line, payment-split donut, OPEX bar; CONFIRMED-only, line-zero days hidden), Fuel (in/out per particular bar, per-row edit/delete), Brick (qty/amount by item), Maintenance (spend per vehicle/ship bar, per-row edit/delete), Revenue (daily payment-split table, per-day + range delete), Expense (daily OPEX table incl. wages, per-day + range delete), Daily detail (original photo + editable parsed tables + totals recalc), Approvals queue (pending/confirmed/rejected).
 - Charts: zero-dependency custom SVG (BAI `monthly-demand-chart.tsx` pattern) — no recharts, Vercel-free-friendly bundle.
 - Edit behavior: editing revenue/expense lines recalculates derived totals immediately (fixes legacy 5-column staleness bug).
 

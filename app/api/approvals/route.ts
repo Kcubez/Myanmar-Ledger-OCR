@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireOwner } from "../../../lib/require-owner";
 import { serializeReport } from "../../../lib/reports";
-import { sendTelegramMessage } from "../../../lib/telegram/client";
+import { finalizeReportMessages } from "../../../lib/telegram/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -44,34 +44,8 @@ export async function POST(req: NextRequest) {
   });
 
   // Fire-and-forget: approval itself must not fail if Telegram is down.
-  void notifySubmitter(session.user.id, body.reportId, approved).catch((notifyError) =>
-    console.error("Approval Telegram notify failed:", notifyError),
+  void finalizeReportMessages({ ownerUserId: session.user.id, reportId: body.reportId, approved }).catch(
+    (notifyError) => console.error("Approval Telegram notify failed:", notifyError),
   );
   return NextResponse.json({ ok: true, status: report.status });
-}
-
-/** Resolve the owner's bot token (DB settings first, env fallback). */
-async function resolveNotifyToken(ownerUserId: string): Promise<string | null> {
-  const settings = await prisma.botSettings.findUnique({ where: { userId: ownerUserId } });
-  if (settings?.botToken) return settings.botToken;
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
-  return token ? token : null;
-}
-
-async function notifySubmitter(ownerUserId: string, reportId: string, approved: boolean): Promise<void> {
-  const botToken = await resolveNotifyToken(ownerUserId);
-  if (!botToken) {
-    console.error("Approval notify skipped: no bot token (neither DB nor env).");
-    return;
-  }
-  const messages = await prisma.telegramMessage.findMany({
-    where: { reportId },
-    select: { chatId: true },
-  });
-  const chats = [...new Set(messages.map((message) => message.chatId))];
-  const label = approved ? "✅ <b>CONFIRMED</b>" : "❌ <b>REJECTED — ပြန်တင်ပေးပါ</b>";
-  const text = approved
-    ? `${label}\nသင့်တင်ထားသော report — dashboard မှာ မြင်ရပါပြီ။`
-    : `${label}\nသင့်တင်ထားသော report.`;
-  await Promise.allSettled(chats.map((chatId) => sendTelegramMessage({ botToken, chatId, text })));
 }

@@ -10,6 +10,8 @@ const LINKS = [
   { href: "/fuel", label: "Fuel", ico: "⛽" },
   { href: "/brick", label: "Brick", ico: "🧱" },
   { href: "/maintenance", label: "Maintenance", ico: "🔧" },
+  { href: "/revenue", label: "Revenue", ico: "💰" },
+  { href: "/expense", label: "Expense", ico: "💸" },
   { href: "/approvals", label: "Approvals", ico: "✅" },
   { href: "/settings", label: "Settings", ico: "⚙️" },
 ];
@@ -104,6 +106,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [pending, setPending] = useState<number | null>(null);
   const [role, setRole] = useState<"admin" | "user" | null>(null);
 
+  function refreshPending() {
+    fetch("/api/approvals")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setPending(Array.isArray(d?.reports) ? d.reports.length : 0))
+      .catch(() => setPending(null));
+  }
+
   useEffect(() => {
     authClient
       .getSession()
@@ -111,16 +120,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const admin = (s?.data?.user as { role?: string } | undefined)?.role === "admin";
         setRole(admin ? "admin" : "user");
         if (!admin) {
-          fetch("/api/approvals")
-            .then((r) => (r.ok ? r.json() : null))
-            .then((d) => setPending(Array.isArray(d?.reports) ? d.reports.length : 0))
-            .catch(() => setPending(null));
+          refreshPending();
         } else {
           setPending(null);
         }
       })
       .catch(() => setRole("user"));
   }, [pathname]);
+
+  // Approve/reject actions refresh server content without changing pathname,
+  // so the badge would go stale — action buttons dispatch this event.
+  useEffect(() => {
+    const onPendingChanged = () => refreshPending();
+    window.addEventListener("pending-changed", onPendingChanged);
+    return () => window.removeEventListener("pending-changed", onPendingChanged);
+  }, []);
 
   const isAdmin = role === "admin";
 
@@ -184,11 +198,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           (isAdmin ? ADMIN_LINKS : LINKS).map((link) => {
             const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
-              <Link key={link.href} href={link.href} className={active ? "active" : ""}>
+              <Link key={link.href} href={link.href} className={active ? "active" : ""} aria-label={link.label}>
                 <span className="ico" aria-hidden>
                   {link.ico}
                 </span>
-                {link.label}
+                <span className="lbl">{link.label}</span>
                 {link.href === "/approvals" && !!pending && <span className="dot">{pending}</span>}
               </Link>
             );
