@@ -124,7 +124,6 @@ export default async function RevenuePage({
                   <td>{Math.round(day.methods.AYA_SPECIAL ?? 0).toLocaleString()}</td>
                   <td>
                     <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                      <a href={`/reports/${key}#ledger-REVENUE`}>Open</a>
                       <QuickEditModal dateKey={key} kind="revenue" />
                       <DeleteRangeButton
                         kind="revenue"

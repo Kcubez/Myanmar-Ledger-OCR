@@ -4,6 +4,7 @@ import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
 import { AppShell, PageHeader, StatCard } from "../../components/layout";
 import { DateFilter } from "../../components/DateFilter";
 import { DeleteRowButton } from "../../components/DeleteRowButton";
+import { RowEditModal } from "../../components/QuickEditModal";
 import { BarChart } from "../../components/charts";
 
 export const dynamic = "force-dynamic";
@@ -86,7 +87,7 @@ export default async function MaintenancePage({
                     <td>{row.part || "—"}</td>
                     <td>
                       <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                        <a href={`/reports/${dateKey}`}>Edit</a>
+                        <RowEditModal dateKey={dateKey} kind="maintenance" rowId={row.id} />
                         <DeleteRowButton deleteUrl={`/api/maintenance-lines/${row.id}`} label="maintenance line" />
                       </span>
                     </td>

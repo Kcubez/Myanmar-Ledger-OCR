@@ -5,6 +5,7 @@ import { AppShell, PageHeader, StatCard } from "../../components/layout";
 import { DateFilter } from "../../components/DateFilter";
 import { DeleteRangeButton } from "../../components/DeleteRangeButton";
 import { DeleteRowButton } from "../../components/DeleteRowButton";
+import { RowEditModal } from "../../components/QuickEditModal";
 import { BarChart } from "../../components/charts";
 
 export const dynamic = "force-dynamic";
@@ -157,7 +158,7 @@ export default async function FuelPage({
                     <td>{row.balanceGal?.toString() ?? "—"}</td>
                     <td>
                       <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                        <a href={`/reports/${dateKey}`}>Edit</a>
+                        <RowEditModal dateKey={dateKey} kind="fuel" rowId={row.id} />
                         <DeleteRowButton deleteUrl={`/api/fuel-entries/${row.id}`} label="fuel entry" />
                       </span>
                     </td>

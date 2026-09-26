@@ -148,7 +148,6 @@ export default async function DashboardPage({
                 <th>Status</th>
                 <th>Revenue</th>
                 <th>Expense</th>
-                <th />
               </tr>
             </thead>
             <tbody>
@@ -164,9 +163,6 @@ export default async function DashboardPage({
                     </td>
                     <td>{Number(r.totalRevenue).toLocaleString()}</td>
                     <td>{Number(r.totalExpense).toLocaleString()}</td>
-                    <td>
-                      <a href={`/reports/${r.date.toISOString().slice(0, 10)}`}>Open</a>
-                    </td>
                   </tr>
                 ))}
             </tbody>

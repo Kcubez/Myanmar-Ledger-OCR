@@ -4,6 +4,8 @@ import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
 import { AppShell, PageHeader, StatCard } from "../../components/layout";
 import { DateFilter } from "../../components/DateFilter";
 import { DeleteRangeButton } from "../../components/DeleteRangeButton";
+import { DeleteRowButton } from "../../components/DeleteRowButton";
+import { RowEditModal } from "../../components/QuickEditModal";
 import { BarChart } from "../../components/charts";
 
 export const dynamic = "force-dynamic";
@@ -86,7 +88,7 @@ export default async function BrickPage({
 
       {lowConfidence.length > 0 && (
         <section className="card pad" style={{ borderColor: "#e5b9b9" }}>
-          <h2>⚠️ Low-confidence rows ({lowConfidence.length}) — review in daily report</h2>
+          <h2>⚠️ Low-confidence rows ({lowConfidence.length}) — review in Approvals queue</h2>
           <div className="table-wrap">
             <table>
               <thead>
@@ -100,11 +102,7 @@ export default async function BrickPage({
               <tbody>
                 {lowConfidence.map((row) => (
                   <tr key={row.id}>
-                    <td>
-                      <a href={`/reports/${row.report.date.toISOString().slice(0, 10)}`}>
-                        {(row.date ?? row.report.date).toISOString().slice(0, 10)}
-                      </a>
-                    </td>
+                    <td>{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
                     <td>{row.item}</td>
                     <td>{row.qty?.toString() ?? "—"}</td>
                     <td>{row.amount?.toString() ?? "—"}</td>
@@ -127,18 +125,28 @@ export default async function BrickPage({
                 <th>Qty</th>
                 <th>Unit price</th>
                 <th>Amount</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {recent.map((row) => (
-                <tr key={row.id}>
-                  <td>{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
-                  <td>{row.item}</td>
-                  <td>{row.qty?.toString() ?? "—"}</td>
-                  <td>{row.unitPrice?.toString() ?? "—"}</td>
-                  <td>{row.amount?.toString() ?? "—"}</td>
-                </tr>
-              ))}
+              {recent.map((row) => {
+                const dateKey = (row.date ?? row.report.date).toISOString().slice(0, 10);
+                return (
+                  <tr key={row.id}>
+                    <td>{dateKey}</td>
+                    <td>{row.item}</td>
+                    <td>{row.qty?.toString() ?? "—"}</td>
+                    <td>{row.unitPrice?.toString() ?? "—"}</td>
+                    <td>{row.amount?.toString() ?? "—"}</td>
+                    <td>
+                      <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                        <RowEditModal dateKey={dateKey} kind="brick" rowId={row.id} />
+                        <DeleteRowButton deleteUrl={`/api/brick-entries/${row.id}`} label="brick entry" />
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
