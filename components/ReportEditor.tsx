@@ -8,7 +8,7 @@ import { RowEditModal } from "./QuickEditModal";
 export type EditableReport = {
   status: string;
   revenueLines: { id: string; method: string; amount: number }[];
-  expenseLines: { id: string; category: string; name: string | null; role: string | null; amount: number }[];
+  expenseLines: { id: string; category: string; name: string | null; amount: number }[];
   maintenanceLines: { id: string; vehicle: string; amount: number; part: string | null }[];
   fuelEntries: {
     id: string;
@@ -94,6 +94,15 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
                 </tr>
               </thead>
               <tbody>
+                <tr>
+                  <td>
+                    <b>Total</b>
+                  </td>
+                  <td>
+                    <b>{initial.revenueLines.reduce((s, r) => s + r.amount, 0).toLocaleString()}</b>
+                  </td>
+                  <td />
+                </tr>
                 {initial.revenueLines.map((row) => (
                   <tr key={row.id}>
                     <td>{row.method}</td>
@@ -130,6 +139,16 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
                 </tr>
               </thead>
               <tbody>
+                <tr>
+                  <td>
+                    <b>Total</b>
+                  </td>
+                  <td />
+                  <td>
+                    <b>{initial.expenseLines.reduce((s, r) => s + r.amount, 0).toLocaleString()}</b>
+                  </td>
+                  <td />
+                </tr>
                 {initial.expenseLines.map((row) => (
                   <tr key={row.id}>
                     <td>{row.category}</td>

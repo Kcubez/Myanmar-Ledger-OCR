@@ -64,18 +64,3 @@ export async function getOwnerUserId(): Promise<string | null> {
   const admin = await prisma.user.findFirst({ where: { role: "admin" }, select: { id: true } });
   return admin?.id ?? null;
 }
-
-/** Approvers in the same tenant, excluding the submitter. */
-export async function getApprovers(excludeSenderId: string, ownerUserId: string) {
-  return prisma.telegramSender.findMany({
-    where: {
-      userId: ownerUserId,
-      isAuthorized: true,
-      isVerified: true,
-      isDataApprover: true,
-      id: { not: excludeSenderId },
-      telegramUserId: { not: null },
-    },
-    select: { id: true, telegramUserId: true, displayName: true },
-  });
-}

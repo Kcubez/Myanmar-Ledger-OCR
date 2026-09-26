@@ -53,7 +53,6 @@ export default async function ApprovalsPage() {
                         id: row.id,
                         category: row.category,
                         name: row.name,
-                        role: row.role,
                         amount: Number(row.amount),
                       })),
                       maintenanceLines: report.maintenanceLines.map((row) => ({

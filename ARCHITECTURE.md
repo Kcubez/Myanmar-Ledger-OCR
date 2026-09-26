@@ -17,13 +17,13 @@ Single Vercel project + single Supabase project. Web upload removed; web is dash
 ## 2. Request flows
 
 ### 2.1 Link / OTP (BAI verbatim)
-`/link <email>` → lookup pre-registered `TelegramSender` → generate 6-digit OTP (`otpCode`, `otpExpiresAt` ~10 min) → `sendOTPEmail` (Brevo) → sender replies OTP → match + unexpired → set `isVerified/isAuthorized=true`, inherit `allowedLedgers/isDataApprover`, clear `otpCode`. Wrong/expired → reject message, stay unlinked (`KEYBOARD_UNLINKED`).
+`/link <email>` → lookup pre-registered `TelegramSender` → generate 6-digit OTP (`otpCode`, `otpExpiresAt` ~10 min) → `sendOTPEmail` (Brevo) → sender replies OTP → match + unexpired → set `isVerified/isAuthorized=true`, inherit `allowedLedgers`, clear `otpCode`. Wrong/expired → reject message, stay unlinked (`KEYBOARD_UNLINKED`).
 
 ### 2.2 Submit → extract → approve
 1. Photo arrives → `getFileInfoFromMessage` (largest photo) → `checkAuthorization(sender)` → deny + stop if fail (no Gemini call).
 2. Mode check: `allowedLedgers.includes(activeReportType)` else `sendNoPermissionPrompt`.
 3. Immediate ack message; `after()` continues: `downloadTelegramFile` → size check → sharp (1920px longest, JPEG q75 — Gemini payload, in-memory only; 400px/q60 thumb) → staging thumb upload ∥ `lib/extract/<type>` (Gemini primary with 45 s/key timeout, heuristic fallback) → move thumb to date folder → `DailyReport` upsert for the **content date** (extracted from the photo header, e.g. 21/9/2026; upload date only as fallback — running fuel/brick pages merge into that date) + lines + `SourceImage` (`storagePath` null, thumb only) + `TelegramMessage(chatId,messageId,unique)`. Multiple photos/day merge into one report; `date @unique` is the merge key, not a 1-photo limit.
-4. Approver routing: `getIndependentDataApprovers` (same tenant `userId`, `isAuthorized+isVerified+isDataApprover`, exclude submitter) → preview + `[✅ Confirm][❌ Reject]` inline buttons. Owner self-upload skips to CONFIRMED.
+4. Submitter taps ✅ Confirm → approval requested (⏳ note, button stripped, repeat taps deduped). Approval is dashboard-only: owner approves/rejects in the Approvals queue (inline edit available); approve → CONFIRMED + submitter notified (stale ⏳ edited in place); reject → full cascade delete. Every submit starts PENDING (no auto-confirm).
 5. On action: `notifyOtherApprovers` (no double-handle), notify submitter. Dashboard approvals page mirrors the same queue. `TelegramMessage @unique([senderId, telegramMsgId])` guards duplicate delivery.
 
 ### 2.3 Dashboard read/edit
@@ -83,12 +83,12 @@ model TelegramMessage { id String @id @default(cuid())
   createdAt DateTime @default(now())  @@unique([chatId, messageId])  @@index([chatId]) }
 ```
 
-Plus BAI-copied: `User/Session/Account/Verification` (Better Auth), `TelegramSender` (telegramUserId BigInt, email, otpCode/otpExpiresAt, isVerified, isAuthorized, isDataApprover, `allowedLedgers String[]`, activeReportType, userId tenant FK). No `Shop` table (single client; add with RLS only for client #2). Money = kyat integer BigInt (serialize via `.toString()`); RLS owner-only; Prisma server code uses service role.
+Plus BAI-copied: `User/Session/Account/Verification` (Better Auth), `TelegramSender` (telegramUserId BigInt, email, otpCode/otpExpiresAt, isVerified, isAuthorized, `allowedLedgers String[]`, activeReportType, userId tenant FK). No `Shop` table (single client; add with RLS only for client #2). Money = kyat integer BigInt (serialize via `.toString()`); RLS owner-only; Prisma server code uses service role.
 
 ## 4. Auth & route guard
 - Better Auth email/password; first admin via `/setup` (locks permanently after first user, API 403); `/admin/users` role promote.
 - `proxy.ts` (Next 16, not middleware): session-cookie check; PUBLIC = `/login /admin/login /api/auth /setup /api/setup /api/telegram/*`; everything else redirects to login.
-- `/api/senders` (admin): list + toggle `isAuthorized / allowedLedgers / isDataApprover`.
+- `/api/senders` (admin): list + toggle `isAuthorized / allowedLedgers`.
 
 ## 5. Extraction library (`lib/extract/`)
 - `shared.ts`: Gemini client, sequential key rotation over `GEMINI_API_KEYS` (retry only quota/rate-limit/key errors; terminal format errors return directly), `maskKey` (`••••last4`), Myanmar-digit normalize, amount parsing, `temperature: 0` + `responseMimeType: application/json`.

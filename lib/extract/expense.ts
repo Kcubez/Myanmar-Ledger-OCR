@@ -11,7 +11,7 @@ export type ExpenseData = {
   business_drawing: string;
   personal_drawing: string;
   operation: string;
-  wages: { name: string; role: string; amount: string }[];
+  wages: { name: string; amount: string }[];
 };
 
 export type ExpenseParseResult = {
@@ -34,7 +34,7 @@ export function expensePrompt(): string {
     `Extract the daily expense (OPEX) summary from this ledger photo. Return ONLY valid JSON with this exact shape:\n` +
     `{"date":"report date or empty string","total":"total expense in source format or empty string",` +
     `"business_drawing":"amount or empty","personal_drawing":"amount or empty","operation":"operation expense or empty",` +
-    `"wages":[{"name":"driver/worker name or vehicle id","role":"role or empty","amount":"amount or empty"}]}\n` +
+    `"wages":[{"name":"full text as written (e.g. 6E-4110 Driver, Wheel Loader Operator) or empty","amount":"amount or empty"}]}\n` +
     `Do not invent unclear values — use empty strings. Preserve source amount formats. ` +
     `Preserve Myanmar script verbatim — never transliterate.`
   );
@@ -50,7 +50,7 @@ export function parseExpenseResponse(text: string): ExpenseParseResult {
   const wagesRaw = Array.isArray(parsed.wages) ? parsed.wages : [];
   const wages: ExpenseData["wages"] = wagesRaw.map((entry) => {
     const row = (entry ?? {}) as Record<string, unknown>;
-    return { name: asText(row.name), role: asText(row.role), amount: asText(row.amount) };
+    return { name: asText(row.name), amount: asText(row.amount) };
   });
   const data: ExpenseData = {
     date: asText(parsed.date),
@@ -107,7 +107,7 @@ export function parseExpenseMessage(text: string): ExpenseParseResult {
     for (const line of lines) {
       if (/driver|loader|worker|operator|purchaser/i.test(line)) {
         const match = line.match(wagePattern);
-        if (match) data.wages.push({ name: match[1].trim(), role: "", amount: match[2].trim() });
+        if (match) data.wages.push({ name: match[1].trim(), amount: match[2].trim() });
       }
     }
     return { data, confidence: 0.35, unreadable_fields: [] };

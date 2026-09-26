@@ -55,6 +55,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-vi
 .queue { display:grid; gap:12px; }
 .queue-item { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:16px 18px; }
 .queue-item .grow { flex:1; min-width:220px; }
+.queue-item .grow > div > section:first-child { margin-top:12px; }
 .scrim { display:none; }
 .bottomnav { display:none; }
 @media (max-width: 1024px) {

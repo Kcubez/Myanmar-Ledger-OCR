@@ -84,7 +84,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
 
     if (Array.isArray(body.expense)) {
-      const rows = (body.expense as { category?: string; name?: string; role?: string; amount?: unknown }[]).filter(
+      const rows = (body.expense as { category?: string; name?: string; amount?: unknown }[]).filter(
         (row) => (EXPENSE_CATEGORIES as readonly string[]).includes(row.category ?? ""),
       );
       await tx.expenseLine.deleteMany({ where: { reportId } });
@@ -94,7 +94,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
             reportId,
             category: row.category as (typeof EXPENSE_CATEGORIES)[number],
             name: row.name || null,
-            role: row.role || null,
             amount: big(row.amount),
           })),
         });

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Modal } from "./Modal";
 
 type RevenueRow = { method: string; amount: number };
-type ExpenseRow = { category: string; name: string | null; role: string | null; amount: number };
+type ExpenseRow = { category: string; name: string | null; amount: number };
 type FuelRow = {
   id: string;
   particular: string | null;
@@ -26,7 +26,7 @@ type BrickRow = {
 };
 type MaintRow = { id: string; vehicle: string; amount: number; part: string | null };
 type RevRow = { id: string; method: string; amount: number };
-type ExpRow = { id: string; category: string; name: string | null; role: string | null; amount: number };
+type ExpRow = { id: string; category: string; name: string | null; amount: number };
 
 const num = (value: string): number => (value === "" ? 0 : Number(value) || 0);
 const numOrNull = (value: string): number | null => (value === "" ? null : Number(value) || 0);
@@ -400,15 +400,9 @@ export function RowEditModal({
                   <Field label="Name">
                     <input
                       value={(row as ExpRow).name ?? ""}
+                      placeholder="e.g. 6E-4110 Driver"
                       style={{ ...boxStyle, width: 170 }}
                       onChange={(e) => setRow({ name: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Role">
-                    <input
-                      value={(row as ExpRow).role ?? ""}
-                      style={{ ...boxStyle, width: 170 }}
-                      onChange={(e) => setRow({ role: e.target.value })}
                     />
                   </Field>
                   <Field label="Amount">

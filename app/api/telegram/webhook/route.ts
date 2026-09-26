@@ -10,8 +10,6 @@ import {
   downloadTelegramFile,
   getFileInfoFromMessage,
 } from "../../../../lib/telegram/client";
-import { finalizeReportMessages } from "../../../../lib/telegram/notify";
-import { deleteReportCascade } from "../../../../lib/reports";
 import {
   buildLedgerMenuButtons,
   getFormatPromptForMode,
@@ -23,7 +21,6 @@ import {
   upsertSender,
   isSenderAuthorized,
   getOwnerUserId,
-  getApprovers,
   isPrismaUniqueConstraintError,
 } from "../../../../lib/telegram/senders";
 import { sendOTPEmail } from "../../../../lib/email";
@@ -34,9 +31,11 @@ import {
   extractWithKeyRotation,
   RetryableExhaustedError,
   TerminalExtractError,
+  dominantReason,
   amountFrom,
   isLedgerType,
   type LedgerType,
+  type ExtractReason,
 } from "../../../../lib/extract";
 import { revenuePrompt, parseRevenueResponse } from "../../../../lib/extract/revenue";
 import { expensePrompt, parseExpenseResponse } from "../../../../lib/extract/expense";
@@ -225,7 +224,7 @@ export async function POST(req: NextRequest) {
 
     await sendTelegramMessage({ botToken, chatId, text: `📥 လက်ခံရရှိပါပြီ — ${ledgerLabel(mode)} စစ်ဆေးနေသည်…` });
     after(() =>
-      processPhoto(botToken, runtime.keys, runtime.model, ownerUserId, sender.id, String(chatId), messageId, fileInfo.fileId, mode).catch(
+      processPhoto(botToken, runtime.keys, runtime.model, String(chatId), messageId, fileInfo.fileId, mode).catch(
         (error) => console.error("processPhoto failed:", error),
       ),
     );
@@ -250,7 +249,7 @@ async function handleText(
       await sendTelegramMessage({ botToken, chatId, text: "❌ OTP မှားနေပါသည် သို့မဟုတ် သက်တမ်းကုန်ပါပြီ။ <code>/link email</code> ဖြင့် ပြန်တောင်းပါ။" });
       return;
     }
-    // Inherit pre-registered scopes/approver flag from an admin-created row.
+    // Inherit pre-registered scopes from an admin-created row.
     // The placeholder (telegramUserId null) is consumed here so /settings
     // stops showing a stale PENDING duplicate next to the LINKED row.
     const pre = sender.email
@@ -264,15 +263,17 @@ async function handleText(
         isVerified: true,
         isAuthorized: true,
         allowedLedgers: pre ? pre.allowedLedgers : [],
-        isDataApprover: pre ? pre.isDataApprover : false,
         otpCode: null,
         otpExpiresAt: null,
       },
     });
     if (pre) {
+      // No userId filter: when the owner can't be resolved the placeholder
+      // would otherwise survive as a stale PENDING duplicate. Same-email
+      // null-telegram rows are placeholders by construction, so this is safe.
       await prisma.telegramSender
         .deleteMany({
-          where: { email: sender.email, userId: ownerUserId, telegramUserId: null },
+          where: { email: sender.email, telegramUserId: null },
         })
         .catch(() => undefined);
     }
@@ -420,13 +421,7 @@ async function handleCallback(
   }
 
   if (data.startsWith("confirm:")) {
-    await handleSubmitterConfirm(botToken, sender, chatId, messageId, queryId, data.replace("confirm:", ""));
-    return;
-  }
-
-  if (data.startsWith("approve:") || data.startsWith("reject:")) {
-    const approve = data.startsWith("approve:");
-    await handleApproval(botToken, sender, chatId, messageId, queryId, data.split(":")[1], approve);
+    await handleSubmitterConfirm(botToken, chatId, messageId, queryId, data.replace("confirm:", ""));
     return;
   }
 
@@ -450,8 +445,6 @@ async function processPhoto(
   botToken: string,
   keys: string[],
   model: string,
-  ownerUserId: string | null,
-  senderId: string,
   chatId: string,
   messageId: number,
   fileId: string,
@@ -489,10 +482,20 @@ async function processPhoto(
     extractByType(keys, model, base64, mode),
     uploadImage(stagedThumbPath, thumb, "image/jpeg"),
   ]);
-  if (!extracted) {
-    await prisma.telegramMessage.updateMany({ where: { chatId, messageId }, data: { status: "failed", error: "unavailable" } });
+  if (extracted && "exhausted" in extracted) {
+    // All keys failed retryably — tell staff WHY (quota vs overload vs bad
+    // key) instead of a generic "try later". Detail chain is in Vercel logs.
+    const failText: Record<ExtractReason, string> = {
+      quota: "⏳ Gemini quota ပြည့်နေပါတယ်။ ခဏကြာမှ ပြန်ပို့ပေးပါ။",
+      overloaded: "⏳ Model အလုပ်များနေပါတယ်။ ခဏကြာမှ ပြန်ပို့ပေးပါ။",
+      key: "❌ API key မမှန်ပါ။ Admin ကို ဆက်သွယ်ပါ။",
+      timeout: "❌ Extraction ယာယီမရပါ။ ခဏကြာမှ ပြန်စမ်းပါ။",
+      unknown: "❌ Extraction ယာယီမရပါ။ ခဏကြာမှ ပြန်စမ်းပါ။",
+      unavailable: "❌ Extraction ယာယီမရပါ။ ခဏကြာမှ ပြန်စမ်းပါ။",
+    };
+    await prisma.telegramMessage.updateMany({ where: { chatId, messageId }, data: { status: "failed", error: extracted.reason } });
     await deleteImage(stagedThumbPath).catch(() => false);
-    await sendTelegramMessage({ botToken, chatId, text: "❌ Extraction ယာယီမရပါ။ ခဏကြာမှ ပြန်စမ်းပါ။" });
+    await sendTelegramMessage({ botToken, chatId, text: failText[extracted.reason] });
     return;
   }
   if (extracted.terminal) {
@@ -505,8 +508,7 @@ async function processPhoto(
   // Merge into the CONTENT date's report (upload date = fallback).
   const reportDate = resolveReportDate(extracted.contentDateText);
   const key = dateKey(reportDate);
-  const sender = await prisma.telegramSender.findUnique({ where: { id: senderId } });
-  const autoConfirm = sender?.isDataApprover === true;
+  // Dashboard-only approval: every submit starts PENDING (no auto-confirm).
 
   const thumbPath = storagePath(key, mode, messageId, true);
   // Move staging thumb → final content-date folder (server-side, no re-upload).
@@ -521,10 +523,10 @@ async function processPhoto(
   const { report, added, skipped } = await prisma.$transaction(async (tx) => {
     const rep = await tx.dailyReport.upsert({
       where: { date: reportDate },
-      create: { date: reportDate, status: autoConfirm ? "CONFIRMED" : "PENDING" },
+      create: { date: reportDate, status: "PENDING" },
       // A fresh photo carries unreviewed lines — never inherit CONFIRMED.
       // (NEEDS_REVIEW stays NEEDS_REVIEW; PENDING stays PENDING.)
-      update: { status: autoConfirm ? "CONFIRMED" : "PENDING" },
+      update: { status: "PENDING" },
     });
 
     const counts = await persistLines(tx, rep.id, mode, extracted, reportDate);
@@ -554,39 +556,14 @@ async function processPhoto(
   const summaryMsg = await sendTelegramMessage({
     botToken,
     chatId,
-    text: `${extracted.summary}\n\n📅 ${key} report ${autoConfirm ? "✅ <b>CONFIRMED</b>" : "⏳ <b>PENDING</b> — အတည်ပြုရန် Confirm နှိပ်ပါ"}${mergeNote}`,
-    replyMarkup: autoConfirm
-      ? undefined
-      : { inline_keyboard: [[{ text: "✅ Confirm", callback_data: `confirm:${report.id}` }]] },
+    text: `${extracted.summary}\n\n📅 ${key} report ⏳ <b>PENDING</b> — အတည်ပြုရန် Confirm နှိပ်ပါ${mergeNote}`,
+    replyMarkup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: `confirm:${report.id}` }]] },
   });
   // Remember the bot's reply so approval flows can edit it in place later.
   if (summaryMsg) {
     await prisma.telegramMessage
       .updateMany({ where: { chatId, messageId }, data: { botReplyMessageId: summaryMsg.message_id } })
       .catch((error) => console.error("Failed to store bot reply id:", error));
-  }
-
-  if (!autoConfirm && ownerUserId) {
-    const approvers = await getApprovers(senderId, ownerUserId);
-    await Promise.all(
-      approvers
-        .filter((approver: { telegramUserId: bigint | null }) => approver.telegramUserId !== null)
-        .map((approver: { telegramUserId: bigint | null; id: string; displayName: string | null }) =>
-          sendTelegramMessage({
-            botToken,
-            chatId: approver.telegramUserId!.toString(),
-            text: `🔔 <b>Approval လိုအပ်နေသည်</b> — ${ledgerLabel(mode)} · 📅 ${key}\n${extracted.summary}`,
-            replyMarkup: {
-              inline_keyboard: [
-                [
-                  { text: "✅ Approve", callback_data: `approve:${report.id}` },
-                  { text: "❌ Reject", callback_data: `reject:${report.id}` },
-                ],
-              ],
-            },
-          }),
-        ),
-    );
   }
 }
 
@@ -605,7 +582,7 @@ async function extractByType(
   model: string,
   base64: string,
   mode: LedgerType,
-): Promise<(ExtractedPayload & { terminal?: false }) | { terminal: true } | null> {
+): Promise<(ExtractedPayload & { terminal?: false }) | { terminal: true } | { exhausted: true; reason: ExtractReason }> {
   const parts = (prompt: string) => [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64 } }];
   try {
     switch (mode) {
@@ -665,9 +642,16 @@ async function extractByType(
     // Log the underlying cause — Vercel function logs are the only way to
     // tell a deterministic failure (bad image/model) from a transient one.
     const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    if (error instanceof TerminalExtractError) {
+      console.error(`extractByType[${mode}] failed:`, detail);
+      return { terminal: true };
+    }
+    if (error instanceof RetryableExhaustedError) {
+      const trail = error.attempts.map((a) => `#${a.slot}:${a.code}/${a.reason}`).join(" ");
+      console.error(`extractByType[${mode}] failed:`, detail, `| keys tried: ${trail || "none"}`);
+      return { exhausted: true as const, reason: dominantReason(error.attempts) };
+    }
     console.error(`extractByType[${mode}] failed:`, detail);
-    if (error instanceof TerminalExtractError) return { terminal: true };
-    if (error instanceof RetryableExhaustedError) return null;
     return { terminal: true };
   }
 }
@@ -713,15 +697,15 @@ async function persistLines(tx: Tx, reportId: string, mode: LedgerType, extracte
     case "expense": {
       const payload = extracted.lines as {
         header: { business_drawing: string; personal_drawing: string; operation: string; total: string };
-        wages: { name: string; role: string; amount: string }[];
+        wages: { name: string; amount: string }[];
       };
       await tx.expenseLine.deleteMany({ where: { reportId } });
-      const rows: { reportId: string; category: "BUSINESS_DRAWING" | "PERSONAL_DRAWING" | "OPERATION" | "WAGES"; name: string | null; role: string | null; amount: bigint }[] = [];
-      if (payload.header.business_drawing) rows.push({ reportId, category: "BUSINESS_DRAWING", name: null, role: null, amount: big(payload.header.business_drawing) });
-      if (payload.header.personal_drawing) rows.push({ reportId, category: "PERSONAL_DRAWING", name: null, role: null, amount: big(payload.header.personal_drawing) });
-      if (payload.header.operation) rows.push({ reportId, category: "OPERATION", name: null, role: null, amount: big(payload.header.operation) });
+      const rows: { reportId: string; category: "BUSINESS_DRAWING" | "PERSONAL_DRAWING" | "OPERATION" | "WAGES"; name: string | null; amount: bigint }[] = [];
+      if (payload.header.business_drawing) rows.push({ reportId, category: "BUSINESS_DRAWING", name: null, amount: big(payload.header.business_drawing) });
+      if (payload.header.personal_drawing) rows.push({ reportId, category: "PERSONAL_DRAWING", name: null, amount: big(payload.header.personal_drawing) });
+      if (payload.header.operation) rows.push({ reportId, category: "OPERATION", name: null, amount: big(payload.header.operation) });
       for (const wage of payload.wages) {
-        rows.push({ reportId, category: "WAGES", name: wage.name || null, role: wage.role || null, amount: big(wage.amount) });
+        rows.push({ reportId, category: "WAGES", name: wage.name || null, amount: big(wage.amount) });
       }
       if (rows.length) await tx.expenseLine.createMany({ data: rows });
       const total = rows.reduce((sum, row) => sum + Number(row.amount), 0);
@@ -801,7 +785,6 @@ async function persistLines(tx: Tx, reportId: string, mode: LedgerType, extracte
 
 async function handleSubmitterConfirm(
   botToken: string,
-  sender: { id: string; telegramUserId: bigint | null },
   chatId: number,
   messageId: number,
   queryId: string,
@@ -821,16 +804,7 @@ async function handleSubmitterConfirm(
     await editMessageButtons({ botToken, chatId, messageId });
     return;
   }
-  const full = await prisma.telegramSender.findUnique({ where: { id: sender.id } });
-  if (full?.isDataApprover && !isOwnSubmission(report.telegramMessages, sender.telegramUserId)) {
-    await prisma.dailyReport.update({ where: { id: reportId }, data: { status: "CONFIRMED" } });
-    await prisma.telegramMessage.updateMany({ where: { reportId }, data: { status: "confirmed" } });
-    await answerCallbackQuery(botToken, queryId, "Confirmed");
-    await editMessageButtons({ botToken, chatId, messageId });
-    await sendTelegramMessage({ botToken, chatId, text: "✅ <b>CONFIRMED</b> — dashboard မှာ မြင်ရပါပြီ။" });
-    return;
-  }
-  // Submitter confirm = request approval; approvers already notified at submit.
+  // Submitter confirm = request approval (reviewed in the dashboard queue).
   // Strip the button first so repeat taps can't spam ⏳ messages.
   await editMessageButtons({ botToken, chatId, messageId });
   const alreadyRequested = report.telegramMessages.length > 0 &&
@@ -847,73 +821,4 @@ async function handleSubmitterConfirm(
       .updateMany({ where: { reportId }, data: { botReplyMessageId: waitingMsg.message_id } })
       .catch((error) => console.error("Failed to store bot reply id:", error));
   }
-}
-
-function isOwnSubmission(
-  messages: { chatId: string }[],
-  approverTelegramId: bigint | null,
-): boolean {
-  if (!approverTelegramId || messages.length === 0) return false;
-  return messages.every((message) => message.chatId === approverTelegramId.toString());
-}
-
-async function handleApproval(
-  botToken: string,
-  sender: { id: string; telegramUserId: bigint | null },
-  chatId: number,
-  messageId: number,
-  queryId: string,
-  reportId: string,
-  approve: boolean,
-) {
-  const full = await prisma.telegramSender.findUnique({ where: { id: sender.id } });
-  if (!full?.isDataApprover) {
-    await answerCallbackQuery(botToken, queryId, "Approver permission required");
-    return;
-  }
-  const report = await prisma.dailyReport.findUnique({
-    where: { id: reportId },
-    include: { telegramMessages: true },
-  });
-  if (!report || report.status !== "PENDING") {
-    await answerCallbackQuery(botToken, queryId, "No longer pending");
-    return;
-  }
-  if (isOwnSubmission(report.telegramMessages, sender.telegramUserId)) {
-    await answerCallbackQuery(botToken, queryId, "You cannot approve your own submission");
-    return;
-  }
-
-  if (!approve) {
-    // Reject = delete everything. Finalize first (it looks messages up by
-    // reportId), then cascade-delete. Staff re-sends the photo to correct it.
-    await finalizeReportMessages({ botToken, reportId, approved: false });
-    await deleteReportCascade(reportId);
-    await editTelegramMessage({
-      botToken, chatId, messageId,
-      text: `❌ <b>REJECTED — data ဖျက်ပြီးပါပြီ</b>\nReport: ${reportId}`,
-      replyMarkup: { inline_keyboard: [] },
-    });
-    await answerCallbackQuery(botToken, queryId, "Rejected — data deleted");
-    return;
-  }
-
-  await prisma.dailyReport.update({
-    where: { id: reportId },
-    data: { status: "CONFIRMED" },
-  });
-  await prisma.telegramMessage.updateMany({
-    where: { reportId },
-    data: { status: "confirmed" },
-  });
-  const label = "✅ <b>CONFIRMED</b>";
-  await editTelegramMessage({
-    botToken, chatId, messageId,
-    text: `${label}\nReport: ${reportId}`,
-    replyMarkup: { inline_keyboard: [] },
-  });
-  await answerCallbackQuery(botToken, queryId, "Approved");
-
-  // Resolve stale bot notes in place (⏳ → final), fresh message as fallback.
-  await finalizeReportMessages({ botToken, reportId, approved: true });
 }

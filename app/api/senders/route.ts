@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH /api/senders — toggle authorization/scopes (own senders only).
-// Body: { id, isAuthorized?, isDataApprover?, allowedLedgers? }
+// Body: { id, isAuthorized?, allowedLedgers? }
 export async function PATCH(req: NextRequest) {
   const guard = await requireOwner(req);
   if (guard.error) return guard.error;
@@ -30,7 +30,6 @@ export async function PATCH(req: NextRequest) {
   const body = (await req.json()) as {
     id?: string;
     isAuthorized?: boolean;
-    isDataApprover?: boolean;
     allowedLedgers?: string[];
   };
   if (!body.id) return NextResponse.json({ message: "Missing id" }, { status: 400 });
@@ -56,7 +55,6 @@ export async function PATCH(req: NextRequest) {
     where: { id: body.id },
     data: {
       ...(body.isAuthorized !== undefined ? { isAuthorized: body.isAuthorized } : {}),
-      ...(body.isDataApprover !== undefined ? { isDataApprover: body.isDataApprover } : {}),
       ...(body.allowedLedgers !== undefined ? { allowedLedgers: body.allowedLedgers } : {}),
     },
   });

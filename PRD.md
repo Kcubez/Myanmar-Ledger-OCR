@@ -8,7 +8,7 @@ Client runs a single business (fuel, brick/materials, sand operations) on handwr
 |---|---|---|
 | Owner-admin | 1 person (client) | Full dashboard, approve/reject all, manage staff scopes, edit any report, rotate keys via env |
 | Staff sender | Linked staff only | Submit photos for `allowedLedgers` subset only |
-| Approver | Owner (and optionally 1 delegate) | Confirm/reject PENDING queue (`isDataApprover=true`) |
+| Approver | Owner only | Confirm/reject PENDING queue on the dashboard |
 
 No anonymous/public access. No self-signup. Owner creates staff pre-registrations (email + scopes); staff self-links via Telegram + email OTP.
 
@@ -16,7 +16,7 @@ No anonymous/public access. No self-signup. Owner creates staff pre-registration
 | Ledger | Input photo | Extracted fields | Validation |
 |---|---|---|---|
 | Revenue | Daily revenue summary table | `date, total, cash, kbz_pay, mmqr, kbz_special, aya_special` | `sum(parts) == total`, else flag |
-| Expense (OPEX) | Expense + daily wages tables | `total, business_drawing, personal_drawing, operation, wages[{name,role,amount}]` | `sum == total`, else flag |
+| Expense (OPEX) | Expense + daily wages tables | `total, business_drawing, personal_drawing, operation, wages[{name,amount}]` (name merged, e.g. "6E-4110 Driver") | `sum == total`, else flag |
 | Maintenance | Maintenance table (Vehicle/Ship \| Amount \| Part — 3 cols, no vendor) | `[{vehicle, amount, part}]` | amount > 0 |
 | Fuel | Fuel ledger (Date\|Particular\|In\|Out\|Balance, gallons — particular holds machine/notes, no vehicle col) | `[{date, particular, in_gal, out_gal, balance_gal}]` | running-balance check → `balanceOk` |
 | Brick | Brick ledger (Myanmar handwriting) | `[{item, qty, unit_price, amount}]` + `rawText` always | low-confidence flagged, **never invent values** |
@@ -25,7 +25,7 @@ Common per extraction: `{confidence 0–1, unreadable_fields[]}`. Unclear values
 
 ## 4. Bot UX (bilingual EN + Myanmar)
 1. Unknown sender sees `/link` keyboard only.
-2. `/link <company-email>` → 6-digit OTP via Brevo → sender types OTP → `isVerified + isAuthorized`, inherits pre-registered `allowedLedgers`/`isDataApprover`.
+2. `/link <company-email>` → 6-digit OTP via Brevo → sender types OTP → `isVerified + isAuthorized`, inherits pre-registered `allowedLedgers`.
 3. Linked sender: `/menu` → ledger-type buttons (only allowed) → mode set (`activeReportType`) → format prompt + copy-paste template shown.
 4. Photo (+ optional caption) → immediate ack ("လက်ခံရရှိပါပြီ, စစ်ဆေးနေသည်…") → extraction in background → parsed summary + low-confidence highlights + `[✅ Confirm] [🔁 Retake]`.
 5. Unauthorized user/mode → deny message + stop (no quota burn).

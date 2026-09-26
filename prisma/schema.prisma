@@ -101,7 +101,6 @@ model TelegramSender {
   otpCode            String?
   otpExpiresAt       DateTime?
   isAuthorized       Boolean   @default(false)
-  isDataApprover     Boolean   @default(false) @map("is_data_approver")
   allowedLedgers     String[]  @default([]) @map("allowed_ledgers")
 
   createdAt DateTime @default(now())
@@ -109,7 +108,6 @@ model TelegramSender {
 
   @@map("telegram_sender")
   @@index([telegramUserId])
-  @@index([isDataApprover])
   @@unique([userId, telegramUserId])
 }
 
@@ -206,8 +204,7 @@ model ExpenseLine {
   reportId String          @map("report_id")
   report   DailyReport     @relation(fields: [reportId], references: [id], onDelete: Cascade)
   category ExpenseCategory
-  name     String?
-  role     String?
+  name     String? // merged "name + role" (e.g. "6E-4110 Driver"); role column dropped
   amount   BigInt // kyat integer
 
   @@index([reportId, category])

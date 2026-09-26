@@ -21,7 +21,6 @@ type Sender = {
   telegramUserId: string | null;
   isVerified: boolean;
   isAuthorized: boolean;
-  isDataApprover: boolean;
   allowedLedgers: string[];
 };
 
@@ -42,7 +41,6 @@ export function SettingsManager() {
   const [senders, setSenders] = useState<Sender[]>([]);
   const [preEmail, setPreEmail] = useState("");
   const [preScopes, setPreScopes] = useState<string[]>([]);
-  const [preApprover, setPreApprover] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -151,13 +149,12 @@ export function SettingsManager() {
       const response = await fetch("/api/settings/senders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: preEmail, allowedLedgers: preScopes, isDataApprover: preApprover }),
+        body: JSON.stringify({ email: preEmail, allowedLedgers: preScopes }),
       });
       const data = (await response.json()) as { message?: string };
       if (!response.ok) throw new Error(data.message ?? "Pre-register failed.");
       setPreEmail("");
       setPreScopes([]);
-      setPreApprover(false);
       setMessage("Staff pre-registered. They link via /link + OTP in Telegram.");
       await load();
     } catch (err) {
@@ -296,10 +293,6 @@ export function SettingsManager() {
                   ))}
                 </div>
               </div>
-              <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: ".88rem" }}>
-                <input type="checkbox" checked={preApprover} onChange={(e) => setPreApprover(e.target.checked)} />
-                Can approve (data approver)
-              </label>
               <div>
                 <button type="submit" disabled={busy}>
                   {busy ? "Saving…" : "Pre-register"}
@@ -314,12 +307,11 @@ export function SettingsManager() {
               <table>
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Linked</th>
-                    <th>Scopes</th>
-                    <th>Approver</th>
-                    <th />
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Linked</th>
+                      <th>Scopes</th>
+                      <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -335,7 +327,6 @@ export function SettingsManager() {
                         )}
                       </td>
                       <td style={{ fontSize: ".8rem" }}>{sender.allowedLedgers.join(", ") || "—"}</td>
-                      <td>{sender.isDataApprover ? "yes" : "no"}</td>
                       <td style={{ whiteSpace: "nowrap" }}>
                         <button
                           type="button"
@@ -348,15 +339,7 @@ export function SettingsManager() {
                         <button
                           type="button"
                           className="secondary"
-                          style={{ padding: "4px 10px" }}
-                          onClick={() => toggleSender(sender.id, { isDataApprover: !sender.isDataApprover })}
-                        >
-                          {sender.isDataApprover ? "Unapprover" : "Approver"}
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary"
-                          style={{ padding: "4px 10px", marginLeft: 6, color: "#b3261e" }}
+                          style={{ padding: "4px 10px", color: "#b3261e" }}
                           onClick={() => setDeleting(sender)}
                         >
                           Delete

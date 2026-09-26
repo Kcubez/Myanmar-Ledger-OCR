@@ -9,8 +9,20 @@ import { GoogleGenAI } from "@google/genai";
 export type UsedKey = { slot: number; masked: string };
 
 export class TerminalExtractError extends Error {}
-export class RetryableExhaustedError extends Error {}
 export class ExtractTimeoutError extends Error {}
+
+/** One failed key attempt — logged per slot, summarized on exhaustion. */
+export type ExtractAttempt = {
+  slot: number;
+  code: string;
+  reason: "quota" | "key" | "overloaded" | "timeout" | "unknown";
+};
+
+export class RetryableExhaustedError extends Error {
+  attempts: ExtractAttempt[] = [];
+}
+
+export type ExtractReason = ExtractAttempt["reason"] | "unavailable";
 
 /** Race a promise against a timeout; the loser is discarded. */
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -35,6 +47,44 @@ const RETRYABLE =
 
 export function isRetryableMessage(message: string): boolean {
   return RETRYABLE.test(message);
+}
+
+/**
+ * Classify a retryable failure for logs and staff-facing messages.
+ * Order matters: quota first (most common burst cause), then bad-key
+ * (admin-actionable), overload, network/timeout.
+ */
+export function classifyAttempt(message: string): { code: string; reason: ExtractAttempt["reason"] } {
+  if (/429|resource_exhausted|quota|rate.?limit/i.test(message)) return { code: "429", reason: "quota" };
+  if (/api key.*(invalid|not valid|disabled|expired)|permission denied|API_KEY_INVALID/i.test(message)) {
+    return { code: "403", reason: "key" };
+  }
+  if (/HTTP 400|invalid argument/i.test(message)) return { code: "400", reason: "key" };
+  if (/503|overloaded|UNAVAILABLE|unavailable|500|502|504|internal error|bad gateway|gateway timeout|service unavailable/i.test(message)) {
+    return { code: "503", reason: "overloaded" };
+  }
+  if (/timed? ?out|ETIMEDOUT|socket hang up|ECONNRESET|ECONNREFUSED|fetch failed|network/i.test(message)) {
+    return { code: "timeout", reason: "timeout" };
+  }
+  return { code: "?", reason: "unknown" };
+}
+
+/** Majority reason across attempts (tie-break: quota > key > overloaded > timeout). */
+export function dominantReason(attempts: ExtractAttempt[]): ExtractReason {
+  if (!attempts.length) return "unavailable";
+  const rank: ExtractAttempt["reason"][] = ["quota", "key", "overloaded", "timeout", "unknown"];
+  const counts = new Map<ExtractAttempt["reason"], number>();
+  for (const attempt of attempts) counts.set(attempt.reason, (counts.get(attempt.reason) ?? 0) + 1);
+  let best: ExtractAttempt["reason"] = "unknown";
+  let bestCount = -1;
+  for (const reason of rank) {
+    const count = counts.get(reason) ?? 0;
+    if (count > bestCount) {
+      best = reason;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 /** Parse a comma-separated key env var into a trimmed, non-empty list. */
@@ -115,6 +165,7 @@ export async function extractWithKeyRotation<T>(options: {
   const timeoutMs = options.timeoutMs ?? 90_000;
   const timeoutRetries = options.timeoutRetries ?? 1;
   let retryableFailure = false;
+  const attempts: ExtractAttempt[] = [];
   for (const [index, key] of options.keys.entries()) {
     let attempt = 0;
     for (;;) {
@@ -148,11 +199,17 @@ export async function extractWithKeyRotation<T>(options: {
             continue;
           }
           console.error(`Gemini key slot ${index + 1} timed out ${attempt}×; rotating.`);
+          attempts.push({ slot: index + 1, code: "timeout", reason: "timeout" });
           retryableFailure = true;
           break;
         }
       const message = error instanceof Error ? error.message : "";
       if (isRetryableMessage(message)) {
+        const classified = classifyAttempt(message);
+        attempts.push({ slot: index + 1, ...classified });
+        console.error(
+          `Gemini key slot ${index + 1} failed (${classified.code} ${classified.reason}): ${message.slice(0, 160)}`,
+        );
         retryableFailure = true;
         break; // next key — `continue` here would spin the inner retry loop forever
       }
@@ -160,9 +217,11 @@ export async function extractWithKeyRotation<T>(options: {
       } // end catch
     } // end per-key retry loop
   } // end key rotation
-  throw new RetryableExhaustedError(
+  const exhausted = new RetryableExhaustedError(
     retryableFailure
       ? "Extraction is temporarily unavailable. Please try again later."
       : "Could not extract this image.",
   );
+  exhausted.attempts = attempts;
+  throw exhausted;
 }

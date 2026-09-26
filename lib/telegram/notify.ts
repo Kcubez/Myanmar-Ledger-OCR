@@ -69,8 +69,8 @@ export async function finalizeReportMessages(opts: {
     // Nothing to edit (or all edits failed) — send a fresh status message.
     const label = opts.approved ? "✅ <b>CONFIRMED</b>" : "❌ <b>REJECTED — ပြန်တင်ပေးပါ</b>";
     const text = opts.approved
-      ? `${label}\nသင့်တင်ထားသော report — dashboard မှာ မြင်ရပါပြီ။`
-      : `${label}\nသင့်တင်ထားသော report.`;
+      ? `${label}\nတင်ထားသော report — dashboard မှာ မြင်ရပါပြီ။`
+      : `${label}\n`;
     await Promise.allSettled(chats.map((chatId) => sendTelegramMessage({ botToken, chatId, text })));
   } catch (error) {
     console.error("Finalize report messages failed:", error);
