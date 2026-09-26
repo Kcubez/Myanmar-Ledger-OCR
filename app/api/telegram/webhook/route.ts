@@ -11,6 +11,7 @@ import {
   getFileInfoFromMessage,
 } from "../../../../lib/telegram/client";
 import {
+  buildExtractSummaryMessage,
   buildLedgerMenuButtons,
   getFormatPromptForMode,
   getLinkInstructions,
@@ -548,15 +549,10 @@ async function processPhoto(
     return { report: rep, ...counts };
   });
 
-  // Fuel/brick merge new rows (dupes skipped); snapshots replace same-type lines.
-  const mergeNote =
-    mode === "fuel" || mode === "brick"
-      ? `\n➕ ${added} rows added${skipped ? ` (${skipped} dupes skipped)` : ""}`
-      : `\n♻️ ဒီနေ့ရဲ့ ${ledgerLabel(mode)} အဟောင်းလိုင်းများ အစားထိုးမည်`;
   const summaryMsg = await sendTelegramMessage({
     botToken,
     chatId,
-    text: `${extracted.summary}\n\n📅 ${key} report ⏳ <b>PENDING</b> — အတည်ပြုရန် Confirm နှိပ်ပါ${mergeNote}`,
+    text: buildExtractSummaryMessage({ summary: extracted.summary, dateKey: key, mode, added, skipped }),
     replyMarkup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: `confirm:${report.id}` }]] },
   });
   // Remember the bot's reply so approval flows can edit it in place later.

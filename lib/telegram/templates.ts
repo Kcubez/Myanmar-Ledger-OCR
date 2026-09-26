@@ -138,8 +138,31 @@ export function getFormatPromptForMode(mode: LedgerType | null | undefined): str
   }
 }
 
-export function getLinkInstructions(): string {
-  return [
+/**
+ * Post-extract summary message: per-type result line + pending-review notice.
+ * Snapshot types (revenue/expense/maintenance) replace today's lines;
+ * append types (fuel/brick) merge new rows — the note says which happened.
+ */
+export function buildExtractSummaryMessage(opts: {
+  summary: string;
+  dateKey: string;
+  mode: LedgerType;
+  added: number;
+  skipped: number;
+}): string {
+  const note =
+    opts.mode === "fuel" || opts.mode === "brick"
+      ? `\n➕ စာကြောင်း ${opts.added} ကြောင်း ပေါင်းထည့်ပြီးပါပြီ${
+          opts.skipped ? ` · ထပ်နေသော ${opts.skipped} ကြောင်း ကျော်ထားသည်` : ""
+        }`
+      : `\n📌 ယနေ့စာရင်းအဟောင်းရှိပါက ယခုတင်သောအသစ်ဖြင့် အစားထိုးမည်`;
+  return (
+    `${opts.summary}\n\n📅 ${opts.dateKey} နေ့စာရင်း · ⏳ Review စောင့်နေသည်` +
+    ` — စစ်ပြီးရင် အောက်က Confirm ကိုနှိပ်ပါ${note}`
+  );
+}
+
+export function getLinkInstructions(): string {  return [
     "🔗 ━━━━━━━━━━━━━━━━━━━━",
     "",
     "  <b>အကောင့်ချိတ်ဆက်ရန်</b>",

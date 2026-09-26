@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "./Modal";
+import { AmountInput } from "./AmountInput";
 
 type RevenueRow = { method: string; amount: number };
 type ExpenseRow = { category: string; name: string | null; amount: number };
@@ -27,9 +28,6 @@ type BrickRow = {
 type MaintRow = { id: string; vehicle: string; amount: number; part: string | null };
 type RevRow = { id: string; method: string; amount: number };
 type ExpRow = { id: string; category: string; name: string | null; amount: number };
-
-const num = (value: string): number => (value === "" ? 0 : Number(value) || 0);
-const numOrNull = (value: string): number | null => (value === "" ? null : Number(value) || 0);
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -106,8 +104,6 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
     }
   }
 
-  const num = (value: string): number => (value === "" ? 0 : Number(value) || 0);
-
   return (
     <>
       <button type="button" className="secondary" style={{ padding: "4px 10px" }} onClick={load}>
@@ -129,12 +125,11 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
               {kind === "revenue"
                 ? (rev ?? []).map((row, i) => (
                     <Field key={row.method} label={METHOD_LABELS[row.method] ?? row.method}>
-                      <input
+                      <AmountInput
                         value={row.amount}
-                        inputMode="numeric"
                         style={boxStyle}
-                        onChange={(e) =>
-                          setRev((rev ?? []).map((r, j) => (j === i ? { ...r, amount: num(e.target.value) } : r)))
+                        onChange={(v) =>
+                          setRev((rev ?? []).map((r, j) => (j === i ? { ...r, amount: v ?? 0 } : r)))
                         }
                       />
                     </Field>
@@ -142,20 +137,19 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
                 : (exp ?? [])
                     .filter((row) => HEADER_CATS.includes(row.category))
                     .map((row) => (
-                      <Field key={row.category} label={row.category.replace(/_/g, " ")}>
-                        <input
-                          value={row.amount}
-                          inputMode="numeric"
-                          style={boxStyle}
-                          onChange={(e) =>
-                            setExp(
-                              (exp ?? []).map((r) =>
-                                r.category === row.category ? { ...r, amount: num(e.target.value) } : r,
-                              ),
-                            )
-                          }
-                        />
-                      </Field>
+                    <Field key={row.category} label={row.category.replace(/_/g, " ")}>
+                      <AmountInput
+                        value={row.amount}
+                        style={boxStyle}
+                        onChange={(v) =>
+                          setExp(
+                            (exp ?? []).map((r) =>
+                              r.category === row.category ? { ...r, amount: v ?? 0 } : r,
+                            ),
+                          )
+                        }
+                      />
+                    </Field>
                     ))}
               {kind === "expense" && (
                 <p className="muted" style={{ margin: "4px 0 0", fontSize: ".8rem" }}>
@@ -315,11 +309,11 @@ export function RowEditModal({
                   </Field>
                   {(["inGal", "outGal", "balanceGal"] as const).map((field) => (
                     <Field key={field} label={field === "inGal" ? "In" : field === "outGal" ? "Out" : "Balance"}>
-                      <input
-                        value={(row as FuelRow)[field] ?? ""}
-                        inputMode="decimal"
+                      <AmountInput
+                        value={(row as FuelRow)[field]}
+                        allowDecimal
                         style={boxStyle}
-                        onChange={(e) => setRow({ [field]: numOrNull(e.target.value) })}
+                        onChange={(v) => setRow({ [field]: v })}
                       />
                     </Field>
                   ))}
@@ -339,11 +333,10 @@ export function RowEditModal({
                       key={field}
                       label={field === "qty" ? "Qty" : field === "unitPrice" ? "Unit price" : "Amount"}
                     >
-                      <input
-                        value={(row as BrickRow)[field] ?? ""}
-                        inputMode="decimal"
+                      <AmountInput
+                        value={(row as BrickRow)[field]}
                         style={boxStyle}
-                        onChange={(e) => setRow({ [field]: numOrNull(e.target.value) })}
+                        onChange={(v) => setRow({ [field]: v })}
                       />
                     </Field>
                   ))}
@@ -359,11 +352,10 @@ export function RowEditModal({
                     />
                   </Field>
                   <Field label="Amount">
-                    <input
+                    <AmountInput
                       value={(row as MaintRow).amount}
-                      inputMode="numeric"
                       style={boxStyle}
-                      onChange={(e) => setRow({ amount: num(e.target.value) })}
+                      onChange={(v) => setRow({ amount: v ?? 0 })}
                     />
                   </Field>
                   <Field label="Part">
@@ -377,21 +369,19 @@ export function RowEditModal({
               )}
               {kind === "revenue" && (
                 <Field label={(row as RevRow).method}>
-                  <input
+                  <AmountInput
                     value={(row as RevRow).amount}
-                    inputMode="numeric"
                     style={boxStyle}
-                    onChange={(e) => setRow({ amount: num(e.target.value) })}
+                    onChange={(v) => setRow({ amount: v ?? 0 })}
                   />
                 </Field>
               )}
               {kind === "expense" && (
                 <Field label={(row as ExpRow).category.replace(/_/g, " ")}>
-                  <input
+                  <AmountInput
                     value={(row as ExpRow).amount}
-                    inputMode="numeric"
                     style={boxStyle}
-                    onChange={(e) => setRow({ amount: num(e.target.value) })}
+                    onChange={(v) => setRow({ amount: v ?? 0 })}
                   />
                 </Field>
               )}
@@ -406,11 +396,10 @@ export function RowEditModal({
                     />
                   </Field>
                   <Field label="Amount">
-                    <input
+                    <AmountInput
                       value={(row as ExpRow).amount}
-                      inputMode="numeric"
                       style={boxStyle}
-                      onChange={(e) => setRow({ amount: num(e.target.value) })}
+                      onChange={(v) => setRow({ amount: v ?? 0 })}
                     />
                   </Field>
                 </>

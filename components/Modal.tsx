@@ -41,10 +41,18 @@ export function Modal({
   onCancel: () => void;
 }) {
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+
+  // Auto-focus the confirm button only on the closed→open transition.
+  // (onCancel is an inline arrow in callers, so it must NOT re-trigger focus —
+  // otherwise every keystroke in a modal input would rip focus to Save.)
+  useEffect(() => {
+    if (open && !wasOpen.current) confirmRef.current?.focus();
+    wasOpen.current = open;
+  }, [open ]);
 
   useEffect(() => {
     if (!open) return;
-    confirmRef.current?.focus();
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") onCancel();
     }
