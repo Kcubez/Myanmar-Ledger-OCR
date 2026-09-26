@@ -4,6 +4,7 @@ import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
 import { AppShell, PageHeader, StatCard } from "../../components/layout";
 import { DateFilter } from "../../components/DateFilter";
 import { DeleteRangeButton } from "../../components/DeleteRangeButton";
+import { QuickEditModal } from "../../components/QuickEditModal";
 import { DonutChart } from "../../components/charts";
 
 export const dynamic = "force-dynamic";
@@ -123,7 +124,8 @@ export default async function RevenuePage({
                   <td>{Math.round(day.methods.AYA_SPECIAL ?? 0).toLocaleString()}</td>
                   <td>
                     <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                      <a href={`/reports/${key}`}>Edit</a>
+                      <a href={`/reports/${key}#ledger-REVENUE`}>Open</a>
+                      <QuickEditModal dateKey={key} kind="revenue" />
                       <DeleteRangeButton
                         kind="revenue"
                         kindLabel="revenue"

@@ -43,9 +43,15 @@ export async function POST(req: NextRequest) {
     data: { status: approved ? "confirmed" : "rejected" },
   });
 
-  // Fire-and-forget: approval itself must not fail if Telegram is down.
-  void finalizeReportMessages({ ownerUserId: session.user.id, reportId: body.reportId, approved }).catch(
-    (notifyError) => console.error("Approval Telegram notify failed:", notifyError),
-  );
-  return NextResponse.json({ ok: true, status: report.status });
+  // Awaited (not fire-and-forget): serverless runtimes can freeze the function
+  // the moment the response returns, killing a background Telegram call.
+  // Approval itself already committed above; this only affects the notify.
+  let telegramUpdated = false;
+  try {
+    await finalizeReportMessages({ ownerUserId: session.user.id, reportId: body.reportId, approved });
+    telegramUpdated = true;
+  } catch (notifyError) {
+    console.error("Approval Telegram notify failed:", notifyError);
+  }
+  return NextResponse.json({ ok: true, status: report.status, telegramUpdated });
 }

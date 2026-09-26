@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 
 /**
  * Reusable confirm modal (app-styled replacement for window.confirm).
@@ -31,7 +32,7 @@ export function Modal({
 }: {
   open: boolean;
   title: string;
-  body?: string;
+  body?: string | ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
@@ -77,7 +78,11 @@ export function Modal({
         style={{ width: "100%", maxWidth: 420 }}
       >
         <h2 style={{ marginTop: 0 }}>{title}</h2>
-        {body && <p className="muted" style={{ whiteSpace: "pre-line" }}>{body}</p>}
+        {typeof body === "string" ? (
+          body && <p className="muted" style={{ whiteSpace: "pre-line" }}>{body}</p>
+        ) : (
+          body
+        )}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
           <button type="button" className="secondary" onClick={onCancel} disabled={busy}>
             {cancelLabel}

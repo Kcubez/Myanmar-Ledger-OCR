@@ -40,6 +40,15 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ d
     })),
   );
 
+  // Group photos by ledger type — one card per type (gallery), so two
+  // revenue photos don't render as two same-titled cards.
+  const groups = new Map<string, typeof images>();
+  for (const image of images) {
+    const items = groups.get(image.ledgerType) ?? [];
+    items.push(image);
+    groups.set(image.ledgerType, items);
+  }
+
   return (
     <AppShell>
       <PageHeader
@@ -65,28 +74,38 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ d
               <p className="muted">No source photos for this report.</p>
             </section>
           )}
-          {images.map((image, i) => (
-            <section key={i} className="card pad">
-              <h2>{image.ledgerType}</h2>
-              {image.url ? (
-                <Image
-                  unoptimized
-                  src={image.url}
-                  width={600}
-                  height={800}
-                  alt={`${image.ledgerType} source`}
-                  style={{ width: "100%", height: "auto", borderRadius: 8 }}
-                />
-              ) : (
-                <p className="muted">Image unavailable.</p>
-              )}
-              {image.rawText && (
-                <details style={{ marginTop: 8 }}>
-                  <summary className="muted">Raw extracted text</summary>
-                  <p className="muted" style={{ whiteSpace: "pre-wrap" }}>
-                    {image.rawText}
-                  </p>
-                </details>
+          {[...groups.entries()].map(([type, items]) => (
+            <section key={type} id={`ledger-${type}`} className="card pad" style={{ scrollMarginTop: 80 }}>
+              <h2>{type}</h2>
+              <div className="image-gallery">
+                {items.map((image, i) =>
+                  image.url ? (
+                    <Image
+                      key={i}
+                      unoptimized
+                      src={image.url}
+                      width={600}
+                      height={800}
+                      alt={`${type} source ${i + 1}`}
+                      style={{ width: "100%", height: "auto", borderRadius: 8 }}
+                    />
+                  ) : (
+                    <p key={i} className="muted">
+                      Image unavailable.
+                    </p>
+                  ),
+                )}
+              </div>
+              {items.map(
+                (image, i) =>
+                  image.rawText && (
+                    <details key={i} style={{ marginTop: 8 }}>
+                      <summary className="muted">Raw extracted text {items.length > 1 ? `#${i + 1}` : ""}</summary>
+                      <p className="muted" style={{ whiteSpace: "pre-wrap" }}>
+                        {image.rawText}
+                      </p>
+                    </details>
+                  ),
               )}
             </section>
           ))}

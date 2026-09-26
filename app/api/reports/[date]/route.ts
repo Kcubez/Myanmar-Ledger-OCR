@@ -181,13 +181,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   });
 
   // Status changes from the editor resolve stale Telegram notes too, same as /api/approvals.
+  // Awaited: fire-and-forget risks the runtime freezing before Telegram is called.
+  let telegramUpdated = true;
   if (status && (status === "CONFIRMED" || status === "NEEDS_REVIEW")) {
-    void finalizeReportMessages({ ownerUserId: session.user.id, reportId, approved: status === "CONFIRMED" }).catch(
-      (notifyError) => console.error("Editor approval Telegram notify failed:", notifyError),
-    );
+    try {
+      await finalizeReportMessages({ ownerUserId: session.user.id, reportId, approved: status === "CONFIRMED" });
+    } catch (notifyError) {
+      console.error("Editor approval Telegram notify failed:", notifyError);
+      telegramUpdated = false;
+    }
   }
 
   return NextResponse.json({
     report: JSON.parse(JSON.stringify(updated, (_key, value) => (typeof value === "bigint" ? Number(value) : value))),
+    telegramUpdated,
   });
 }
