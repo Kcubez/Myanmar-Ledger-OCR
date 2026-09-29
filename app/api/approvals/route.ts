@@ -1,3 +1,4 @@
+import { legacyPendingWhere, resolveUpload } from "../../../lib/pending-uploads";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireOwner } from "../../../lib/require-owner";
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
   const { error } = await requireOwner(req);
   if (error) return error;
   const reports = await prisma.dailyReport.findMany({
-    where: { status: { in: ["PENDING", "NEEDS_REVIEW"] } },
+    where: legacyPendingWhere,
     orderBy: { date: "desc" },
     include: {
       _count: {
@@ -19,7 +20,8 @@ export async function GET(req: NextRequest) {
       },
     },
   });
-  return NextResponse.json({ reports: reports.map(serializeReport) });
+  const uploads = await prisma.pendingUpload.findMany({ where: { status: "PENDING" }, select: { id: true } });
+  return NextResponse.json({ reports: [...reports.map(serializeReport), ...uploads] });
 }
 
 // POST /api/approvals (admin) — { reportId, action: "approve" | "reject" }.
@@ -28,9 +30,21 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { error, session } = await requireOwner(req);
   if (error) return error;
-  const body = (await req.json()) as { reportId?: string; action?: string };
+  const body = (await req.json()) as { reportId?: string; uploadId?: string; action?: string };
+  if (body.uploadId && (body.action === "approve" || body.action === "reject")) {
+    try {
+      const upload = await resolveUpload(body.uploadId, body.action === "approve");
+      await finalizeReportMessages({ ownerUserId: session.user.id, reportId: upload.reportId, approved: body.action === "approve", messageIds: [upload.id] });
+      return NextResponse.json({ ok: true });
+    } catch (cause) {
+      return NextResponse.json({ message: cause instanceof Error ? cause.message : "Unable to review upload." }, { status: 409 });
+    }
+  }
   if (!body.reportId || (body.action !== "approve" && body.action !== "reject")) {
     return NextResponse.json({ message: "Provide reportId and action approve|reject" }, { status: 400 });
+  }
+  if (body.action === "reject" && await prisma.pendingUpload.count({ where: { reportId: body.reportId, status: "PENDING" } })) {
+    return NextResponse.json({ message: "Review or reject pending uploads for this date before deleting its legacy report." }, { status: 409 });
   }
   const approved = body.action === "approve";
   const existing = await prisma.dailyReport.findUnique({ where: { id: body.reportId }, select: { id: true } });
@@ -58,7 +72,7 @@ export async function POST(req: NextRequest) {
     data: { status: "CONFIRMED" },
   });
   await prisma.telegramMessage.updateMany({
-    where: { reportId: body.reportId },
+    where: { reportId: body.reportId, id: { notIn: (await prisma.pendingUpload.findMany({ where: { reportId: body.reportId }, select: { id: true } })).map(u => u.id) } },
     data: { status: "confirmed" },
   });
   return NextResponse.json({ ok: true, status: report.status, telegramUpdated });

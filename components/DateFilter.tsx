@@ -164,7 +164,7 @@ export function DateFilter() {
           />
         </>
       )}
-      <span role="status" className="muted">{isPending ? "Updating… / ပြောင်းလဲနေသည်…" : ""}</span>
+      <span role="status" className="muted">{isPending ? "Updating…" : ""}</span>
     </fieldset>
   );
 }

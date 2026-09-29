@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "./Modal";
 
-export function ApprovalButtons({ reportId }: { reportId: string }) {
+export function ApprovalButtons({ reportId, uploadId }: { reportId: string; uploadId?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
@@ -17,9 +17,12 @@ export function ApprovalButtons({ reportId }: { reportId: string }) {
       const response = await fetch("/api/approvals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportId, action }),
+        body: JSON.stringify({ reportId, uploadId, action }),
       });
-      if (!response.ok) throw new Error("Action failed.");
+      if (!response.ok) {
+        const failure = await response.json();
+        throw new Error(failure.message || "Action failed.");
+      }
       const data = (await response.json()) as { telegramUpdated?: boolean };
       if (data.telegramUpdated === false) {
         setNote("Saved, but Telegram update failed — check bot status.");
@@ -28,8 +31,8 @@ export function ApprovalButtons({ reportId }: { reportId: string }) {
       // The sidebar badge caches the pending count per pathname — tell it to refetch.
       window.dispatchEvent(new CustomEvent("pending-changed"));
       router.refresh();
-    } catch {
-      setNote("Action failed.");
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : "Action failed.");
     } finally {
       setBusy(false);
     }
@@ -50,8 +53,8 @@ export function ApprovalButtons({ reportId }: { reportId: string }) {
       )}
       <Modal
         open={confirmingReject}
-        title="Reject and delete this report?"
-        body="All extracted lines and photos for this day will be deleted. Staff must re-send the photo to correct it."
+        title={uploadId ? "Reject this upload?" : "Reject and delete this report?"}
+        body={uploadId ? "Only this pending upload will be rejected. Approved ledger data stays unchanged." : "All extracted lines for this day will be deleted. Staff must re-send the photo to correct it."}
         confirmLabel="Reject & delete"
         danger
         busy={busy}

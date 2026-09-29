@@ -1,3 +1,4 @@
+import { legacyPendingWhere } from "../../../lib/pending-uploads";
 import { ExpenseWageDetails } from "../../../components/ExpenseWageDetails";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import Link from "next/link";
@@ -44,7 +45,7 @@ export default async function DashboardPage({
       where: { report: { date: where, ...confirmed } },
       _sum: { amount: true },
     }),
-    prisma.dailyReport.count({ where: { status: { in: ["PENDING", "NEEDS_REVIEW"] } } }),
+    Promise.all([prisma.dailyReport.count({ where: legacyPendingWhere }), prisma.pendingUpload.count({ where: { status: "PENDING" } })]).then(([reports, uploads]) => reports + uploads),
     prisma.expenseLine.findMany({
       where: { category: "WAGES", report: { date: where, ...confirmed } },
       include: { report: { select: { date: true } } },

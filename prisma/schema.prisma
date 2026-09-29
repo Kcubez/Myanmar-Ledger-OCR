@@ -172,6 +172,7 @@ model DailyReport {
   maintenanceLines MaintenanceLine[]
   fuelEntries      FuelEntry[]
   brickEntries     BrickEntry[]
+  pendingUploads   PendingUpload[]
   images           SourceImage[]
   telegramMessages TelegramMessage[]
 
@@ -289,4 +290,17 @@ model TelegramMessage {
   @@unique([chatId, messageId])
   @@index([chatId])
   @@map("telegram_message")
+}
+
+// Extracted text only, never image bytes. Live ledger rows change on approval.
+model PendingUpload {
+  id        String @id
+  reportId  String @map("report_id")
+  report    DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  mode      String
+  payload   Json
+  status    String @default("PENDING")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([reportId, status])
+  @@map("pending_upload")
 }

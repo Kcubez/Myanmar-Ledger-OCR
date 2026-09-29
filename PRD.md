@@ -59,3 +59,10 @@ No web upload, no multi-client/SaaS billing, no xlsx bulk import, no QA chatbot,
 
 ## 9. Open items (locked unless stated)
 - Prisma 7 + `@prisma/adapter-pg` baseline (BAI stack). Brevo sender email required for OTP. Singapore region recommended.
+
+
+## 2026-09-29 — Approved upload and image retention changes
+- Images are transient: Telegram download → in-memory resize → Gemini → discard. Do not upload originals or thumbnails to Storage. Review original photos in Telegram; dashboard previews are removed.
+- PendingUpload stores extracted JSON only. Existing approved lines and report status remain unchanged on upload. Approve atomically applies that upload: revenue/expense/maintenance replace the same type; fuel/brick append deduplicated rows. Reject affects only the pending upload.
+- Existing legacy pending reports must be reviewed before approving new uploads for the same date. No automatic restoration or approval of legacy data.
+- This section supersedes earlier thumbnail-storage and upload-time replacement policies.

@@ -28,6 +28,7 @@ export async function finalizeReportMessages(opts: {
   ownerUserId?: string;
   reportId: string;
   approved: boolean;
+  messageIds?: string[];
 }): Promise<void> {
   try {
     const botToken = opts.botToken ?? (opts.ownerUserId ? await resolveNotifyToken(opts.ownerUserId) : null);
@@ -36,7 +37,7 @@ export async function finalizeReportMessages(opts: {
       return;
     }
     const rows = await prisma.telegramMessage.findMany({
-      where: { reportId: opts.reportId },
+      where: { reportId: opts.reportId, ...(opts.messageIds ? { id: { in: opts.messageIds } } : { id: { notIn: (await prisma.pendingUpload.findMany({ where: { reportId: opts.reportId }, select: { id: true } })).map(u => u.id) } }) },
       select: { chatId: true, botReplyMessageId: true },
     });
     const chats = [...new Set(rows.map((row) => row.chatId))];

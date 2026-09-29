@@ -63,8 +63,8 @@ export function buildExtractSummaryMessage(opts: {
   skipped: number;
 }): string {
   const note = opts.mode === "fuel" || opts.mode === "brick"
-    ? `Added: ${opts.added} · Duplicates skipped: ${opts.skipped}\nအသစ် ${opts.added} ကြောင်း · ထပ်နေသော ${opts.skipped} ကြောင်း ကျော်ထားသည်။`
-    : "This upload replaces the same ledger for this report date.\nဤစာရင်းရက်စွဲ၏ အမျိုးအစားတူစာရင်းကို ယခုပုံဖြင့် အစားထိုးထားသည်။";
+    ? "Rows will be merged after approval; duplicates will be skipped.\nအတည်ပြုပြီးမှ စာကြောင်းအသစ်များ ပေါင်းထည့်ပါမည်။"
+    : "After approval, this upload replaces the same ledger for this report date. Approved data remains visible until then.\nအတည်ပြုပြီးမှ ရက်စွဲတူ၊ အမျိုးအစားတူစာရင်းကို အစားထိုးပါမည်။";
   return `${opts.summary}\n\n<b>Report date / စာရင်းရက်စွဲ:</b> ${escapeHtml(opts.dateKey)}\n${note}\n\n<b>Pending review / စစ်ဆေးရန်စောင့်နေသည်</b>\nCheck the details, then tap Submit for review. Final approval happens in the dashboard.\nအချက်အလက်စစ်ပြီး စစ်ဆေးရန်ပို့မည် ကိုနှိပ်ပါ။ နောက်ဆုံးအတည်ပြုခြင်းကို dashboard မှ လုပ်ပါမည်။`;
 }
 

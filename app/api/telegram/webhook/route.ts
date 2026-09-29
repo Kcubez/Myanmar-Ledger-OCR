@@ -1,6 +1,6 @@
+import type { ExtractedPayload } from "../../../../lib/persist-ledger";
 import { NextRequest, NextResponse, after } from "next/server";
 import sharp from "sharp";
-import type { Prisma } from "../../../../generated/prisma/client";
 import { prisma } from "../../../../lib/prisma";
 import {
   sendTelegramMessage,
@@ -25,7 +25,6 @@ import {
   isPrismaUniqueConstraintError,
 } from "../../../../lib/telegram/senders";
 import { sendOTPEmail } from "../../../../lib/email";
-import { uploadImage, storagePath, stagingPath, moveImage, deleteImage, bucketPath } from "../../../../lib/supabase";
 import { dateKey, resolveReportDate, extractContentDate } from "../../../../lib/report-date";
 import {
   parseKeyList,
@@ -39,7 +38,7 @@ import {
   type ExtractReason,
 } from "../../../../lib/extract";
 import { revenuePrompt, parseRevenueResponse } from "../../../../lib/extract/revenue";
-import { expensePrompt, parseExpenseResponse, operationIsWageSubtotal } from "../../../../lib/extract/expense";
+import { expensePrompt, parseExpenseResponse } from "../../../../lib/extract/expense";
 import { maintenancePrompt, parseMaintenanceResponse } from "../../../../lib/extract/maintenance";
 import { fuelPrompt, parseFuelResponse } from "../../../../lib/extract/fuel";
 import { brickPrompt, parseBrickResponse } from "../../../../lib/extract/brick";
@@ -464,25 +463,17 @@ async function processPhoto(
 
   if (!keys.length) return fail("❌ Extraction မပြင်ဆင်ရသေးပါ (admin ကို ဆက်သွယ်ပါ)။");
 
-  // Compress: 1920px/q75 main + 400px/q60 thumb.
+  // Image bytes are processed in memory only; never persisted to Storage.
   let main: Buffer;
-  let thumb: Buffer;
   try {
     const pipeline = sharp(downloaded.buffer).rotate();
     main = await pipeline.clone().resize({ width: 1920, height: 1920, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
-    thumb = await pipeline.clone().resize({ width: 400, height: 400, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 60 }).toBuffer();
   } catch {
     return fail("❌ ပုံ process မရပါ။ JPG/PNG/WEBP ဖြင့် ပြန်ပို့ပါ။");
   }
   const base64 = main.toString("base64");
 
-  // Thumbnails-only policy (cost): the 1920px main lives in memory as the
-  // Gemini payload and is discarded; only the ~7KB thumb hits Storage.
-  const stagedThumbPath = stagingPath(chatId, mode, messageId, true);
-  const [extracted, stagedThumb] = await Promise.all([
-    extractByType(keys, model, base64, mode),
-    uploadImage(stagedThumbPath, thumb, "image/jpeg"),
-  ]);
+  const extracted = await extractByType(keys, model, base64, mode);
   if (extracted && "exhausted" in extracted) {
     // All keys failed retryably — tell staff WHY (quota vs overload vs bad
     // key) instead of a generic "try later". Detail chain is in Vercel logs.
@@ -495,13 +486,11 @@ async function processPhoto(
       unavailable: "❌ Extraction ယာယီမရပါ။ ခဏကြာမှ ပြန်စမ်းပါ။",
     };
     await prisma.telegramMessage.updateMany({ where: { chatId, messageId }, data: { status: "failed", error: extracted.reason } });
-    await deleteImage(stagedThumbPath).catch(() => false);
     await sendTelegramMessage({ botToken, chatId, text: failText[extracted.reason] });
     return;
   }
   if (extracted.terminal) {
     await prisma.telegramMessage.updateMany({ where: { chatId, messageId }, data: { status: "failed", error: "parse" } });
-    await deleteImage(stagedThumbPath).catch(() => false);
     await sendTelegramMessage({ botToken, chatId, text: "❌ ဒီပုံကို ဖတ်မရပါ။ ပုံကြည်အောင်ရိုက်ပြီး ပြန်ပို့ပါ။" });
     return;
   }
@@ -511,32 +500,26 @@ async function processPhoto(
   const key = dateKey(reportDate);
   // Dashboard-only approval: every submit starts PENDING (no auto-confirm).
 
-  const thumbPath = storagePath(key, mode, messageId, true);
-  // Move staging thumb → final content-date folder (server-side, no re-upload).
-  // If the move fails, keep the staging location as the source of truth.
-  let storedThumb: string | null = stagedThumb;
-  if (stagedThumb && (await moveImage(stagedThumbPath, thumbPath).catch(() => false))) {
-    storedThumb = bucketPath(thumbPath);
-  }
-  if (!storedThumb) return fail("❌ ပုံ save မရပါ (storage)။ Admin ကို ဆက်သွယ်ပါ။");
-
-  // All-or-nothing: upsert + lines + image + message link commit together.
+  // Stage extracted text and link metadata atomically; live lines are unchanged.
   const { report, added, skipped } = await prisma.$transaction(async (tx) => {
     const rep = await tx.dailyReport.upsert({
       where: { date: reportDate },
       create: { date: reportDate, status: "PENDING" },
-      // A fresh photo carries unreviewed lines — never inherit CONFIRMED.
-      // (NEEDS_REVIEW stays NEEDS_REVIEW; PENDING stays PENDING.)
-      update: { status: "PENDING" },
+      // Approval state belongs to the pending upload, not the existing report.
+      update: {}, // Approved data remains visible until this upload is approved.
     });
 
-    const counts = await persistLines(tx, rep.id, mode, extracted, reportDate);
+    const message = await tx.telegramMessage.findUniqueOrThrow({ where: { chatId_messageId: { chatId, messageId } } });
+    await tx.pendingUpload.create({ data: {
+      id: message.id, reportId: rep.id, mode, payload: JSON.parse(JSON.stringify(extracted)),
+    } });
+    const counts = { added: 0, skipped: 0 };
     await tx.sourceImage.create({
       data: {
         reportId: rep.id,
         ledgerType: mode.toUpperCase() as "REVENUE" | "EXPENSE" | "MAINTENANCE" | "FUEL" | "BRICK",
-        storagePath: null, // thumbnails-only policy: full-size mains are discarded
-        thumbnailPath: storedThumb,
+        storagePath: null, // metadata only; no stored image
+        thumbnailPath: null,
         telegramFileId: fileId,
         sizeBytes: main.length,
         rawText: extracted.rawText,
@@ -563,15 +546,6 @@ async function processPhoto(
   }
 }
 
-type ExtractedPayload = {
-  contentDateText: string;
-  rawText: string;
-  summary: string;
-  persistKind: LedgerType;
-  lines: unknown;
-  confidence: number;
-  flags: string[];
-};
 
 async function extractByType(
   keys: string[],
@@ -658,127 +632,6 @@ async function extractByType(
 // APPENDED and exact dupes skipped (retake-safe and multi-page-safe).
 // Runs inside the submit $transaction; returns added/skipped counts.
 
-type Tx = Prisma.TransactionClient;
-
-/** Order-normalized signature so "5/9" and "05/09" compare equal. */
-function fuelSig(row: { date: Date; particular: string | null; inGal: unknown; outGal: unknown; balanceGal: unknown }): string {
-  const num = (v: unknown) => (v === null || v === undefined || v === "" ? "" : String(Number(v)));
-  return [row.date.toISOString().slice(0, 10), row.particular ?? "", num(row.inGal), num(row.outGal), num(row.balanceGal)].join("|");
-}
-
-function brickSig(row: { date: Date; item: string; qty: unknown; unitPrice: unknown; amount: unknown }): string {
-  const num = (v: unknown) => (v === null || v === undefined || v === "" ? "" : String(Number(v)));
-  return [row.date.toISOString().slice(0, 10), row.item, num(row.qty), num(row.unitPrice), num(row.amount)].join("|");
-}
-
-async function persistLines(tx: Tx, reportId: string, mode: LedgerType, extracted: ExtractedPayload, reportDate: Date): Promise<{ added: number; skipped: number }> {
-  const big = (value: string): bigint => BigInt(Math.round(amountFrom(value)));
-  switch (mode) {
-    case "revenue": {
-      const lines = extracted.lines as { method: string; amount: string }[];
-      await tx.revenueLine.deleteMany({ where: { reportId } });
-      if (lines.length) {
-        await tx.revenueLine.createMany({
-          data: lines.map((line) => ({
-            reportId,
-            method: line.method as "CASH" | "KBZ_PAY" | "MMQR" | "KBZ_SPECIAL" | "AYA_SPECIAL",
-            amount: big(line.amount),
-          })),
-        });
-      }
-      const total = lines.reduce((sum, line) => sum + amountFrom(line.amount), 0);
-      await tx.dailyReport.update({ where: { id: reportId }, data: { totalRevenue: BigInt(Math.round(total)) } });
-      return { added: lines.length, skipped: 0 };
-    }
-    case "expense": {
-      const payload = extracted.lines as {
-        header: { business_drawing: string; personal_drawing: string; operation: string; total: string };
-        wages: { name: string; amount: string }[];
-      };
-      await tx.expenseLine.deleteMany({ where: { reportId } });
-      const rows: { reportId: string; category: "BUSINESS_DRAWING" | "PERSONAL_DRAWING" | "OPERATION" | "WAGES"; name: string | null; amount: bigint }[] = [];
-      if (payload.header.business_drawing) rows.push({ reportId, category: "BUSINESS_DRAWING", name: null, amount: big(payload.header.business_drawing) });
-      if (payload.header.personal_drawing) rows.push({ reportId, category: "PERSONAL_DRAWING", name: null, amount: big(payload.header.personal_drawing) });
-      // Labour detail replaces its matching subtotal, never adds to it.
-      const labourSubtotal = operationIsWageSubtotal({ ...payload.header, wages: payload.wages });
-      if (payload.header.operation && !labourSubtotal) rows.push({ reportId, category: "OPERATION", name: null, amount: big(payload.header.operation) });
-      for (const wage of payload.wages) {
-        rows.push({ reportId, category: "WAGES", name: wage.name || null, amount: big(wage.amount) });
-      }
-      if (rows.length) await tx.expenseLine.createMany({ data: rows });
-      const total = rows.reduce((sum, row) => sum + Number(row.amount), 0);
-      await tx.dailyReport.update({ where: { id: reportId }, data: { totalExpense: BigInt(Math.round(total)) } });
-      return { added: rows.length, skipped: 0 };
-    }
-    case "maintenance": {
-      const lines = extracted.lines as { vehicle: string; amount: string; part: string }[];
-      await tx.maintenanceLine.deleteMany({ where: { reportId } });
-      if (lines.length) {
-        await tx.maintenanceLine.createMany({
-          data: lines.map((line) => ({
-            reportId, vehicle: line.vehicle, amount: big(line.amount),
-            part: line.part || null,
-          })),
-        });
-      }
-      return { added: lines.length, skipped: 0 };
-    }
-    case "fuel": {
-      const rows = extracted.lines as { date: string; particular: string; in_gal: string; out_gal: string; balance_gal: string; balance_ok: boolean | null }[];
-      // Ditto-fill: empty row dates inherit the nearest date above; the
-      // report date is the last resort (never leave null on fresh rows).
-      let carry: Date | null = null;
-      const prepared = rows.map((row) => {
-        const parsed = row.date ? extractContentDate(row.date) : null;
-        if (parsed) carry = parsed;
-        return {
-          reportId, vehicle: "", particular: row.particular || null,
-          date: carry ?? reportDate,
-          inGal: row.in_gal ? amountFrom(row.in_gal) : null,
-          outGal: row.out_gal ? amountFrom(row.out_gal) : null,
-          balanceGal: row.balance_gal ? amountFrom(row.balance_gal) : null,
-          balanceOk: row.balance_ok,
-        };
-      });
-      const existing = await tx.fuelEntry.findMany({
-        where: { reportId },
-        select: { date: true, particular: true, inGal: true, outGal: true, balanceGal: true },
-      });
-      const seen = new Set(existing.map((row) => fuelSig({ ...row, date: row.date ?? reportDate })));
-      const fresh = prepared.filter((row) => !seen.has(fuelSig(row)));
-      if (fresh.length) await tx.fuelEntry.createMany({ data: fresh });
-      // Totals reflect ALL rows for the report (existing + fresh).
-      const sums = await tx.fuelEntry.aggregate({ where: { reportId }, _sum: { inGal: true, outGal: true } });
-      await tx.dailyReport.update({ where: { id: reportId }, data: { totalFuelIn: sums._sum.inGal ?? 0, totalFuelOut: sums._sum.outGal ?? 0 } });
-      return { added: fresh.length, skipped: prepared.length - fresh.length };
-    }
-    case "brick": {
-      const rows = extracted.lines as { date: string; item: string; qty: string; unit_price: string; amount: string }[];
-      // Ditto-fill like fuel: empty row dates inherit the nearest date above.
-      let carry: Date | null = null;
-      const prepared = rows.map((row) => {
-        const parsed = row.date ? extractContentDate(row.date) : null;
-        if (parsed) carry = parsed;
-        return {
-          reportId, item: row.item,
-          date: carry ?? reportDate,
-          qty: row.qty ? amountFrom(row.qty) : null,
-          unitPrice: row.unit_price ? big(row.unit_price) : null,
-          amount: row.amount ? big(row.amount) : null,
-        };
-      });
-      const existing = await tx.brickEntry.findMany({
-        where: { reportId },
-        select: { date: true, item: true, qty: true, unitPrice: true, amount: true },
-      });
-      const seen = new Set(existing.map((row) => brickSig({ ...row, date: row.date ?? reportDate })));
-      const fresh = prepared.filter((row) => !seen.has(brickSig(row)));
-      if (fresh.length) await tx.brickEntry.createMany({ data: fresh });
-      return { added: fresh.length, skipped: prepared.length - fresh.length };
-    }
-  }
-}
-
 // ─── Confirm / approve / reject ──────────────────────────────────────────────
 
 async function handleSubmitterConfirm(
@@ -795,6 +648,14 @@ async function handleSubmitterConfirm(
   if (!report) {
     await answerCallbackQuery(botToken, queryId, "Report not found");
     await editMessageButtons({ botToken, chatId, messageId });
+    return;
+  }
+  const target = report.telegramMessages.find(m => m.chatId === String(chatId) && m.botReplyMessageId === messageId);
+  const pendingUpload = target ? await prisma.pendingUpload.findUnique({ where: { id: target.id } }) : null;
+  if (pendingUpload?.status === "PENDING") {
+    await prisma.telegramMessage.update({ where: { id: target!.id }, data: { status: "approval_requested" } });
+    await editMessageButtons({ botToken, chatId, messageId });
+    await answerCallbackQuery(botToken, queryId, "Sent for approval");
     return;
   }
   if (report.status === "CONFIRMED") {

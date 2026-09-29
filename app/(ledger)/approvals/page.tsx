@@ -1,3 +1,6 @@
+import { legacyPendingWhere } from "../../../lib/pending-uploads";
+import { PendingUploadPreview } from "../../../components/PendingUploadPreview";
+import type { ExtractedPayload } from "../../../lib/persist-ledger";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import { prisma } from "../../../lib/prisma";
 import { PageHeader, StatusPill } from "../../../components/layout";
@@ -10,8 +13,8 @@ export default async function ApprovalsPage() {
   await ownerPageOrRedirect();
 
   const reports = await prisma.dailyReport.findMany({
-    where: { status: { in: ["PENDING", "NEEDS_REVIEW"] } },
-    orderBy: { date: "desc" },
+    where: legacyPendingWhere,
+    orderBy: { date: "asc" },
     include: {
       revenueLines: true,
       expenseLines: true,
@@ -21,14 +24,16 @@ export default async function ApprovalsPage() {
     },
   });
 
+  const uploads = await prisma.pendingUpload.findMany({ where: { status: "PENDING" }, include: { report: { select: { date: true } } }, orderBy: { createdAt: "asc" } });
+
   return (
     <>
       <PageHeader
         title="Approvals"
-        sub={`${reports.length} report(s) awaiting review — oldest first`}
+        sub={`${reports.length + uploads.length} review item(s) awaiting review — oldest first`}
       />
 
-      {reports.length === 0 ? (
+      {reports.length === 0 && uploads.length === 0 ? (
         <section className="card pad">
           <p className="muted">✅ All clear — nothing pending.</p>
         </section>
@@ -86,6 +91,7 @@ export default async function ApprovalsPage() {
           })}
         </div>
       )}
+      <div className="queue">{uploads.map(upload => <PendingUploadPreview key={upload.id} id={upload.id} reportId={upload.reportId} date={upload.report.date.toISOString().slice(0, 10)} mode={upload.mode} payload={upload.payload as unknown as ExtractedPayload} />)}</div>
     </>
   );
 }

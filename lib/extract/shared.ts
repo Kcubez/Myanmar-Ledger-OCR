@@ -168,10 +168,13 @@ export async function extractWithKeyRotation<T>(options: {
   const attempts: ExtractAttempt[] = [];
   for (const [index, key] of options.keys.entries()) {
     let attempt = 0;
+    let overloadRetries = 0;
     for (;;) {
       attempt += 1;
       try {
-        const ai = new GoogleGenAI({ apiKey: key });
+        // Own retry policy here: SDK defaults to 5 attempts and would otherwise
+        // multiply retries across all project keys behind this loop.
+        const ai = new GoogleGenAI({ apiKey: key, httpOptions: { retryOptions: { attempts: 1 }, timeout: timeoutMs } });
         const response = await withTimeout(
           ai.models.generateContent({
             model: options.model,
@@ -206,9 +209,17 @@ export async function extractWithKeyRotation<T>(options: {
       const message = error instanceof Error ? error.message : "";
       if (isRetryableMessage(message)) {
         const classified = classifyAttempt(message);
+        if (classified.reason === "overloaded" && overloadRetries < 1) {
+          overloadRetries += 1;
+          const delayMs = 2000 + Math.floor(Math.random() * 1000);
+          console.error(`Gemini key slot ${index + 1}: model busy (503); retrying once after backoff.`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          continue;
+        }
+
         attempts.push({ slot: index + 1, ...classified });
         console.error(
-          `Gemini key slot ${index + 1} failed (${classified.code} ${classified.reason}): ${message.slice(0, 160)}`,
+          `Gemini key slot ${index + 1} failed (${classified.code} ${classified.reason})`,
         );
         retryableFailure = true;
         break; // next key — `continue` here would spin the inner retry loop forever
