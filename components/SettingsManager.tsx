@@ -92,7 +92,8 @@ export function SettingsManager() {
     };
   }, []);
 
-  const dirty = tokenDraft !== null || keyDraft !== null;
+  const dirty = tokenDraft !== null || keyDraft !== null ||
+    (settings !== null && model.trim() !== settings.geminiModel);
 
   async function saveBot() {
     setBusy(true);
@@ -113,7 +114,7 @@ export function SettingsManager() {
         body: JSON.stringify({
           ...(tokenDraft !== null ? { botToken: tokenDraft } : {}),
           ...(keyDraft !== null ? { geminiApiKey: keyDraft } : {}),
-          geminiModel: model,
+          geminiModel: model.trim(),
         }),
       });
       const data = (await response.json()) as {
@@ -126,6 +127,7 @@ export function SettingsManager() {
       if (!response.ok) throw new Error(data.message ?? "Save failed.");
       if (data.settings) {
         setSettings(data.settings);
+        setModel(data.settings.geminiModel);
         setTokenDraft(null);
         setKeyDraft(null);
       }
@@ -263,11 +265,12 @@ export function SettingsManager() {
             )}
             <label className="muted">
               Gemini model
-              <input value={model} onChange={(e) => setModel(e.target.value)} />
+              <input value={model} onChange={(e) => setModel(e.target.value)} autoComplete="off" spellCheck={false} />
+              <small>Enter the exact model ID from Google AI Studio. Saved changes apply to the next upload.</small>
             </label>
             <div>
-              <button type="button" onClick={saveBot} disabled={busy || !dirty}>
-                {busy ? "Saving…" : "Save & register webhook"}
+              <button type="button" onClick={saveBot} disabled={busy || !settings || !dirty || !model.trim()}>
+                {busy ? "Saving…" : "Save settings"}
               </button>
             </div>
           </div>
