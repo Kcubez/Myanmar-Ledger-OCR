@@ -1,6 +1,9 @@
 import type { ExtractedPayload } from "../../../../lib/persist-ledger";
 import { NextRequest, NextResponse, after } from "next/server";
 import sharp from "sharp";
+
+// Leave time for download, persistence and Telegram notification after Gemini.
+export const maxDuration = 180;
 import { prisma } from "../../../../lib/prisma";
 import {
   sendTelegramMessage,
@@ -11,6 +14,9 @@ import {
   getFileInfoFromMessage,
 } from "../../../../lib/telegram/client";
 import {
+  processingCompleteMessage,
+  processingFailedMessage,
+  waitingForApprovalMessage,
   buildExtractSummaryMessage,
   buildLedgerMenuButtons,
   getFormatPromptForMode,
@@ -222,12 +228,19 @@ export async function POST(req: NextRequest) {
     const mode = await modeAccess(sender, botToken, chatId);
     if (!mode) return NextResponse.json({ ok: true });
 
-    await sendTelegramMessage({ botToken, chatId, text: `📥 လက်ခံရရှိပါပြီ — ${ledgerLabel(mode)} စစ်ဆေးနေသည်…` });
-    after(() =>
-      processPhoto(botToken, runtime.keys, runtime.model, String(chatId), messageId, fileInfo.fileId, mode).catch(
-        (error) => console.error("processPhoto failed:", error),
-      ),
-    );
+    const processing = await sendTelegramMessage({ botToken, chatId, text: `📥 လက်ခံရရှိပါပြီ — ${ledgerLabel(mode)} စစ်ဆေးနေသည်…` });
+    const updateProgress = async (text: string) => {
+      const edited = processing && await editTelegramMessage({ botToken, chatId, messageId: processing.message_id, text });
+      if (!edited) await sendTelegramMessage({ botToken, chatId, text });
+    };
+    after(async () => {
+      try {
+        await processPhoto(botToken, runtime.keys, runtime.model, String(chatId), messageId, fileInfo.fileId, mode, updateProgress);
+      } catch (error) {
+        console.error("processPhoto failed:", error);
+        await updateProgress(processingFailedMessage);
+      }
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -449,13 +462,14 @@ async function processPhoto(
   messageId: number,
   fileId: string,
   mode: LedgerType,
+  updateProgress: (text: string) => Promise<void>,
 ) {
   const fail = async (text: string) => {
     await prisma.telegramMessage.updateMany({
       where: { chatId, messageId },
       data: { status: "failed", error: text },
-    });
-    await sendTelegramMessage({ botToken, chatId, text });
+    }).catch((error) => console.error("Failed to record extraction failure:", error));
+    await updateProgress(text);
   };
 
   const downloaded = await downloadTelegramFile(botToken, fileId);
@@ -485,13 +499,11 @@ async function processPhoto(
       unknown: "❌ Extraction ယာယီမရပါ။ ခဏကြာမှ ပြန်စမ်းပါ။",
       unavailable: "❌ Extraction ယာယီမရပါ။ ခဏကြာမှ ပြန်စမ်းပါ။",
     };
-    await prisma.telegramMessage.updateMany({ where: { chatId, messageId }, data: { status: "failed", error: extracted.reason } });
-    await sendTelegramMessage({ botToken, chatId, text: failText[extracted.reason] });
+    await fail(failText[extracted.reason]);
     return;
   }
   if (extracted.terminal) {
-    await prisma.telegramMessage.updateMany({ where: { chatId, messageId }, data: { status: "failed", error: "parse" } });
-    await sendTelegramMessage({ botToken, chatId, text: "❌ ဒီပုံကို ဖတ်မရပါ။ ပုံကြည်အောင်ရိုက်ပြီး ပြန်ပို့ပါ။" });
+    await fail("❌ ဒီပုံကို ဖတ်မရပါ။ ပုံကြည်အောင်ရိုက်ပြီး ပြန်ပို့ပါ။");
     return;
   }
 
@@ -538,6 +550,7 @@ async function processPhoto(
     text: buildExtractSummaryMessage({ summary: extracted.summary, dateKey: key, mode, added, skipped }),
     replyMarkup: { inline_keyboard: [[{ text: "Submit for review / စစ်ဆေးရန်ပို့မည်", callback_data: `confirm:${report.id}` }]] },
   });
+  await updateProgress(summaryMsg ? processingCompleteMessage : processingFailedMessage);
   // Remember the bot's reply so approval flows can edit it in place later.
   if (summaryMsg) {
     await prisma.telegramMessage
@@ -654,7 +667,14 @@ async function handleSubmitterConfirm(
   const pendingUpload = target ? await prisma.pendingUpload.findUnique({ where: { id: target.id } }) : null;
   if (pendingUpload?.status === "PENDING") {
     await prisma.telegramMessage.update({ where: { id: target!.id }, data: { status: "approval_requested" } });
-    await editMessageButtons({ botToken, chatId, messageId });
+    const edited = await editTelegramMessage({ botToken, chatId, messageId, text: waitingForApprovalMessage, replyMarkup: { inline_keyboard: [] } });
+    if (!edited) {
+      const waiting = await sendTelegramMessage({ botToken, chatId, text: waitingForApprovalMessage });
+      if (waiting) {
+        await prisma.telegramMessage.update({ where: { id: target!.id }, data: { botReplyMessageId: waiting.message_id } });
+        await editMessageButtons({ botToken, chatId, messageId });
+      }
+    }
     await answerCallbackQuery(botToken, queryId, "Sent for approval");
     return;
   }

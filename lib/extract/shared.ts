@@ -25,10 +25,13 @@ export class RetryableExhaustedError extends Error {
 export type ExtractReason = ExtractAttempt["reason"] | "unavailable";
 
 /** Race a promise against a timeout; the loser is discarded. */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms: number, controller: AbortController): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   return new Promise<T>((resolve, reject) => {
-    timer = setTimeout(() => reject(new ExtractTimeoutError(`Gemini timed out after ${ms}ms`)), ms);
+    timer = setTimeout(() => {
+      reject(new ExtractTimeoutError(`Gemini timed out after ${ms}ms`));
+      controller.abort();
+    }, ms);
     promise.then(
       (value) => {
         clearTimeout(timer);
@@ -147,9 +150,10 @@ export type GeminiPart =
 /**
  * Run one Gemini JSON attempt per key in order.
  * - Continues to the next key only on retryable (quota/rate-limit/key) errors.
- * - Each attempt is bounded by timeoutMs (default 90s — reasoning models like
- *   gemini-3.5-flash think 60s+ on hard handwriting). A timeout retries the
- *   SAME key once (transient stalls are common), then rotates.
+ * - Total Gemini time is bounded to 90s, including retries. Requests are aborted
+ *   at the deadline. Timeout retries use only the remaining budget.
+ * - Model overload rotates immediately; stop after two overloaded projects.
+ *   Quota/key errors can still try all configured projects within the budget.
  * - Throws TerminalExtractError immediately for anything else.
  * - Throws RetryableExhaustedError when every key failed retryably.
  */
@@ -160,21 +164,28 @@ export async function extractWithKeyRotation<T>(options: {
   maxOutputTokens?: number;
   timeoutMs?: number;
   timeoutRetries?: number;
+  totalTimeoutMs?: number;
   parse: (text: string) => T;
 }): Promise<{ result: T; usedKey: UsedKey }> {
   const timeoutMs = options.timeoutMs ?? 90_000;
   const timeoutRetries = options.timeoutRetries ?? 1;
+  const deadline = Date.now() + (options.totalTimeoutMs ?? 90_000);
+  let overloadedFailures = 0;
   let retryableFailure = false;
   const attempts: ExtractAttempt[] = [];
-  for (const [index, key] of options.keys.entries()) {
+  rotation: for (const [index, key] of options.keys.entries()) {
     let attempt = 0;
-    let overloadRetries = 0;
+
     for (;;) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break rotation;
+      const attemptTimeout = Math.min(timeoutMs, remaining);
+      const controller = new AbortController();
       attempt += 1;
       try {
         // Own retry policy here: SDK defaults to 5 attempts and would otherwise
         // multiply retries across all project keys behind this loop.
-        const ai = new GoogleGenAI({ apiKey: key, httpOptions: { retryOptions: { attempts: 1 }, timeout: timeoutMs } });
+        const ai = new GoogleGenAI({ apiKey: key, httpOptions: { retryOptions: { attempts: 1 }, timeout: attemptTimeout } });
         const response = await withTimeout(
           ai.models.generateContent({
             model: options.model,
@@ -187,17 +198,19 @@ export async function extractWithKeyRotation<T>(options: {
             config: {
               responseMimeType: "application/json",
               temperature: 0,
+              abortSignal: controller.signal,
               ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
             },
           }),
-          timeoutMs,
+          attemptTimeout,
+          controller,
         );
         const result = options.parse(response.text ?? "{}");
         return { result, usedKey: { slot: index + 1, masked: maskKey(key) } };
       } catch (error) {
         if (error instanceof TerminalExtractError) throw error;
         if (error instanceof ExtractTimeoutError) {
-          if (attempt <= timeoutRetries) {
+          if (attempt <= timeoutRetries && Date.now() < deadline) {
             console.error(`Gemini key slot ${index + 1} timed out after ${timeoutMs}ms (attempt ${attempt}); retrying same key.`);
             continue;
           }
@@ -209,19 +222,13 @@ export async function extractWithKeyRotation<T>(options: {
       const message = error instanceof Error ? error.message : "";
       if (isRetryableMessage(message)) {
         const classified = classifyAttempt(message);
-        if (classified.reason === "overloaded" && overloadRetries < 1) {
-          overloadRetries += 1;
-          const delayMs = 2000 + Math.floor(Math.random() * 1000);
-          console.error(`Gemini key slot ${index + 1}: model busy (503); retrying once after backoff.`);
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-          continue;
-        }
 
         attempts.push({ slot: index + 1, ...classified });
         console.error(
           `Gemini key slot ${index + 1} failed (${classified.code} ${classified.reason})`,
         );
         retryableFailure = true;
+        if (classified.reason === "overloaded" && ++overloadedFailures >= 2) break rotation;
         break; // next key — `continue` here would spin the inner retry loop forever
       }
       throw new TerminalExtractError("Could not extract this image. Please try another image.");
