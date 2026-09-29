@@ -6,7 +6,7 @@ Single-client ledger system: Telegram-only input, dashboard-only web. Ledger typ
 ## Canonical sources (BAI reuse rule)
 - Telegram primitives: copy BAI `lib/telegram/client.ts` semantics (send/edit/download/largest-photo). Do not reinvent the Bot API client.
 - Bot copy: bilingual (EN + Myanmar) via `templates.ts`; escape HTML with `escapeHtml`.
-- Charts: custom SVG only (BAI `monthly-demand-chart.tsx` pattern). No recharts/d3. No new image libs beyond `sharp`.
+- Charts: MUI X Charts (Community, MIT) via `components/charts.tsx` (TrendChart/DonutChart/BarChart, same props API across pages). MUI theme in `lib/mui-theme.ts` mirrors the flat brand tokens. No recharts/d3. No new image libs beyond `sharp`. No MUI X Pro imports (commercial license — grep gate).
 
 ## Parser contract (`lib/extract/`)
 - Every parser returns `{ data, confidence, unreadable_fields[] }` and NEVER throws, NEVER invents values. Unclear → empty + flag.

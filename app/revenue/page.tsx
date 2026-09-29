@@ -64,7 +64,6 @@ export default async function RevenuePage({
   return (
     <AppShell>
       <PageHeader
-        eyebrow="LEDGER DASHBOARD"
         title="Revenue"
         sub={`${range.label} · daily payment split · ${lineCount} lines`}
         actions={

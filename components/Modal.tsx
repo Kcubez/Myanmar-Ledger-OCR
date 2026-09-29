@@ -2,6 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+} from "@mui/material";
 
 /**
  * Reusable confirm modal (app-styled replacement for window.confirm).
@@ -44,68 +51,51 @@ export function Modal({
   const wasOpen = useRef(false);
 
   // Auto-focus the confirm button only on the closed→open transition.
-  // (onCancel is an inline arrow in callers, so it must NOT re-trigger focus —
+  // (Dialog gets disableAutoFocus so MUI never steals focus on re-renders —
   // otherwise every keystroke in a modal input would rip focus to Save.)
   useEffect(() => {
     if (open && !wasOpen.current) confirmRef.current?.focus();
     wasOpen.current = open;
-  }, [open ]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
-
-  if (!open) return null;
+  }, [open]);
 
   return (
-    <div
-      role="presentation"
-      onClick={onCancel}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-        zIndex: 100,
+    <Dialog
+      open={open}
+      onClose={(_event, reason) => {
+        if (reason === "backdropClick" || reason === "escapeKeyDown") onCancel();
       }}
+      disableAutoFocus
+      maxWidth="xs"
+      fullWidth
+      slotProps={{ paper: { sx: { borderRadius: "14px", border: "1px solid var(--line)" } } }}
+      aria-label={title}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        onClick={(e) => e.stopPropagation()}
-        className="card pad"
-        style={{ width: "100%", maxWidth: 420 }}
-      >
-        <h2 style={{ marginTop: 0 }}>{title}</h2>
+      <DialogTitle sx={{ pb: 1 }}>{title}</DialogTitle>
+      <DialogContent>
         {typeof body === "string" ? (
-          body && <p className="muted" style={{ whiteSpace: "pre-line" }}>{body}</p>
+          body && <p className="muted" style={{ margin: 0, whiteSpace: "pre-line" }}>{body}</p>
         ) : (
           body
         )}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-          <button type="button" className="secondary" onClick={onCancel} disabled={busy}>
-            {cancelLabel}
-          </button>
-          <button
-            ref={confirmRef}
-            type="button"
-            onClick={onConfirm}
-            disabled={busy}
-            style={danger ? { background: "#b3261e" } : undefined}
-          >
-            {busy ? "Working…" : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5 }}>
+        <Button
+          onClick={onCancel}
+          disabled={busy}
+          sx={{ bgcolor: "var(--soft)", color: "var(--leaf)", "&:hover": { bgcolor: "#e4ede6" } }}
+        >
+          {cancelLabel}
+        </Button>
+        <Button
+          ref={confirmRef}
+          onClick={onConfirm}
+          disabled={busy}
+          variant="contained"
+          color={danger ? "error" : "primary"}
+        >
+          {busy ? "Working…" : confirmLabel}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

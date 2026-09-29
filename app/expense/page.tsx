@@ -58,7 +58,6 @@ export default async function ExpensePage({
   return (
     <AppShell>
       <PageHeader
-        eyebrow="LEDGER DASHBOARD"
         title="Expense"
         sub={`${range.label} · daily OPEX split · ${lineCount} lines`}
         actions={

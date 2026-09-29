@@ -3,7 +3,7 @@
 ## Repo map
 - `PRD.md` — requirements + acceptance. `ARCHITECTURE.md` — full design. `ARCHITECTURE-ESSENTIALS.md` — runtime cheat sheet. `AGENTS.md` — working agreement (read it before editing).
 - Code: `app/api/telegram/webhook/` (bot ingress) · `lib/extract/<revenue|expense|maintenance|fuel|brick>.ts` (parsers) · `lib/telegram/` (client/templates/senders) · `app/dashboard|fuel|brick|reports|approvals|settings|admin` pages · `components/DateFilter|DeleteRangeButton|Modal` (reusable UI) · `prisma/schema.prisma`.
-- BAI reference (`../business-ai-integration-service`): canonical Telegram/auth/chart patterns — copy semantics, don't diverge.
+- BAI reference (`../business-ai-integration-service`): canonical Telegram/auth patterns — copy semantics, don't diverge.
 
 ## Commands
 `npm run dev` · `npm run build` · `npm run start` · `npm run lint` · `npx tsc --noEmit` · `npx prisma generate` · `npx prisma db push` · `npx prisma validate`.
@@ -16,7 +16,7 @@
 
 ## Common tasks
 - Add a ledger field: update parser schema + heuristic + Prisma model + migration + dashboard form + fixture (match + mismatch case).
-- Add a chart: extend SVG chart pattern, feed from TanStack Query hook, no new deps.
+- Add a chart: extend `components/charts.tsx` (MUI X Community only — never Pro), feed from TanStack Query hook.
 - Onboard staff: admin pre-registration → staff `/link` → verify in `/api/senders`.
 - Rotate key: update `BotSettings` via `/settings` (or env + redeploy for fallback).
 

@@ -105,7 +105,7 @@ Plus BAI-copied: `User/Session/Account/Verification` (Better Auth), `TelegramSen
 - Date filter (BAI semantics, URL-only): `lib/date-filter.ts` + `components/DateFilter.tsx` in the header-right `actions` slot; default current month; modes overall/day/month/year/custom.
 - Range delete: `DELETE /api/ledger-entries` (fuel|brick, owner-only) + reusable `components/Modal.tsx` confirm.
 - Dashboard approve/reject (`POST /api/approvals`) notifies the submitter's Telegram chat.
-- Charts: custom SVG (line + donut + bar) copied from BAI `monthly-demand-chart.tsx`. No IndexedDB (legacy `lib/storage.ts` removed).
+- Charts: MUI X Charts Community (`components/charts.tsx`: line + donut + bar) themed from `lib/mui-theme.ts`; Emotion SSR via `components/MuiProvider.tsx` (`@mui/material-nextjs`). No IndexedDB (legacy `lib/storage.ts` removed). No MUI X Pro imports.
 
 ## 8. Env & secrets
 Server-only: `DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `GEMINI_API_KEYS`, `BETTER_AUTH_SECRET`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`. Public (`NEXT_PUBLIC_`): app URL/name only. Never a key. Bot config DB-first (`BotSettings` with env fallback); Settings PUT auto-registers the webhook.
@@ -116,4 +116,4 @@ Retryable (next key): 429/quota/rate-limit/invalid-key/permission-denied. Termin
 ## 10. BAI reuse map
 | Copy verbatim | Adapt (rename/reshape) | Skip |
 |---|---|---|
-| `telegram/client.ts`, `text-normalize.ts`, SVG chart, `/setup` lock, `proxy.ts` shape, `senders` API shape | `templates.ts` prompts, `demand-parser.ts` → `ledger-parser` per-type, `TelegramSender.allowedDepartments` → `allowedLedgers`, finance tables → ledger tables | Customer/Demand/HR/projects-infra, xlsx bulk import, QA/QADocument, multi-role RBAC beyond admin/user |
+| `telegram/client.ts`, `text-normalize.ts`, `/setup` lock, `proxy.ts` shape, `senders` API shape | `templates.ts` prompts, `demand-parser.ts` → `ledger-parser` per-type, `TelegramSender.allowedDepartments` → `allowedLedgers`, finance tables → ledger tables | Customer/Demand/HR/projects-infra, xlsx bulk import, QA/QADocument, multi-role RBAC beyond admin/user |

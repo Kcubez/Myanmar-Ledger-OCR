@@ -24,7 +24,6 @@ export default async function ApprovalsPage() {
   return (
     <AppShell>
       <PageHeader
-        eyebrow="LEDGER DASHBOARD"
         title="Approvals"
         sub={`${reports.length} report(s) awaiting review — oldest first`}
       />

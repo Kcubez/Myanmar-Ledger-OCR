@@ -33,4 +33,4 @@ Supabase: 500 MB DB · 1 GB Storage · 5 GB egress · 7-day pause · no backups.
 | BigInt serialize crash | `.toString()` amounts at API boundary |
 
 ## Don'ts
-No `NEXT_PUBLIC_` keys · no blob-in-DB · no multi-photo batch · no web upload (removed) · no invented values · no new chart/image deps without bundle check.
+No `NEXT_PUBLIC_` keys · no blob-in-DB · no multi-photo batch · no web upload (removed) · no invented values · no new chart/image deps without bundle check · no MUI X Pro imports.

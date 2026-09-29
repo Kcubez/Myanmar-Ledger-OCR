@@ -34,7 +34,7 @@ Common per extraction: `{confidence 0–1, unreadable_fields[]}`. Unclear values
 ## 5. Dashboard (web upload REMOVED, Telegram-only input)
 - Login: email/password (Better Auth), single admin; session-guarded routes.
 - Pages: Overview (revenue vs expense line, payment-split donut, OPEX bar; CONFIRMED-only, line-zero days hidden), Fuel (in/out per particular bar, per-row edit/delete), Brick (qty/amount by item, per-row edit/delete), Maintenance (spend per vehicle/ship bar, per-row edit/delete), Revenue (daily payment-split table, per-day + range delete, quick-edit modal), Expense (daily OPEX table incl. wages, per-day + range delete, quick-edit modal), Approvals queue (inline full editor per pending report + approve/reject; source photos live in Telegram, not displayed).
-- Charts: zero-dependency custom SVG (BAI `monthly-demand-chart.tsx` pattern) — no recharts, Vercel-free-friendly bundle.
+- Charts: MUI X Charts Community (MIT) — TrendChart/LineChart, DonutChart/PieChart, BarChart via `components/charts.tsx`; Inter numerals + leaf brand theme (`lib/mui-theme.ts`).
 - Edit behavior: editing revenue/expense lines recalculates derived totals immediately (fixes legacy 5-column staleness bug).
 
 ## 6. Non-goals

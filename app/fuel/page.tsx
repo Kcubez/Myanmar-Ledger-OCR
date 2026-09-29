@@ -48,7 +48,6 @@ export default async function FuelPage({
   return (
     <AppShell>
       <PageHeader
-        eyebrow="LEDGER DASHBOARD"
         title="Fuel"
         sub={`${range.label} · gallons in/out per particular`}
         actions={

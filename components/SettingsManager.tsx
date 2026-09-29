@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { LEDGER_TYPES } from "../lib/extract";
 import { Modal } from "./Modal";
+import { Pill } from "./layout";
 
 type BotSettings = {
   botToken: string;
@@ -227,7 +228,7 @@ export function SettingsManager() {
       {tab === "bot" && (
         <section className="card pad">
           <h2>
-            Telegram bot {settings?.isActive ? <span className="pill confirmed">ACTIVE</span> : <span className="pill pending">INACTIVE</span>}
+            Telegram bot {settings?.isActive ? <Pill tone="confirmed">ACTIVE</Pill> : <Pill tone="pending">INACTIVE</Pill>}
           </h2>
           {settings?.usingEnvFallback && (
             <p className="muted">Using environment config — save here once to migrate into the database.</p>
@@ -321,9 +322,9 @@ export function SettingsManager() {
                       <td>{sender.email ?? "—"}</td>
                       <td>
                         {sender.telegramUserId ? (
-                          <span className="pill confirmed">LINKED</span>
+                          <Pill tone="confirmed">LINKED</Pill>
                         ) : (
-                          <span className="pill pending">PENDING</span>
+                          <Pill tone="pending">PENDING</Pill>
                         )}
                       </td>
                       <td style={{ fontSize: ".8rem" }}>{sender.allowedLedgers.join(", ") || "—"}</td>

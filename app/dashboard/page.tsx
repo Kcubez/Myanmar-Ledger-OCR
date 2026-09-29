@@ -69,9 +69,8 @@ export default async function DashboardPage({
   return (
     <AppShell>
       <PageHeader
-        eyebrow="LEDGER DASHBOARD"
         title="Overview"
-        sub={`${range.label} · Telegram-fed reports`}
+        sub={`${range.label}`}
         actions={
           <>
             <DateFilter />
@@ -93,11 +92,18 @@ export default async function DashboardPage({
           sub="Ks · revenue − expense"
           tone={net >= 0 ? "good" : "bad"}
         />
-        <StatCard label="Pending" value={`${pendingCount}`} sub="awaiting approval" />
+        {pendingCount > 0 ? (
+          <Link href="/approvals" className="stat-link" aria-label={`Review ${pendingCount} pending reports`}>
+            <StatCard label="Pending" value={`${pendingCount}`} sub="awaiting approval — tap to review" tone="warn" />
+          </Link>
+        ) : (
+          <StatCard label="Pending" value="0" sub="all caught up" />
+        )}
       </section>
 
-      <div className="grid-2">
-        <section className="card pad">
+      <div className="dashboard-charts">
+        <section className="card pad dashboard-trend">
+          <p className="section-eyebrow">Trend</p>
           <h2>Revenue vs expense</h2>
           {reports.length ? (
             <TrendChart
@@ -111,7 +117,8 @@ export default async function DashboardPage({
             <p className="muted">No reports yet — submit photos via Telegram.</p>
           )}
         </section>
-        <section className="card pad">
+        <section className="card pad dashboard-payment">
+          <p className="section-eyebrow">Mix</p>
           <h2>Revenue by payment</h2>
           {revenueAgg.length ? (
             <DonutChart
@@ -124,10 +131,11 @@ export default async function DashboardPage({
             <p className="muted">No revenue lines yet.</p>
           )}
         </section>
-      </div>
 
-      <section className="card pad" style={{ marginBottom: 16 }}>
+      <section className="card pad dashboard-expense">
+        <p className="section-eyebrow">Breakdown</p>
         <h2>Expense by category</h2>
+        <p className="chart-meta">Amount · Ks · Highest first</p>
         {expenseAgg.length ? (
           <BarChart
             data={expenseAgg.map((row) => ({ label: row.category.replace(/_/g, " "), value: Number(row._sum.amount ?? 0) }))}
@@ -138,7 +146,10 @@ export default async function DashboardPage({
         )}
       </section>
 
+      </div>
+
       <section className="card pad">
+        <p className="section-eyebrow">History</p>
         <h2>Recent reports</h2>
         <div className="table-wrap">
           <table>
@@ -146,8 +157,8 @@ export default async function DashboardPage({
               <tr>
                 <th>Date</th>
                 <th>Status</th>
-                <th>Revenue</th>
-                <th>Expense</th>
+                <th className="num">Revenue</th>
+                <th className="num">Expense</th>
               </tr>
             </thead>
             <tbody>
@@ -161,8 +172,8 @@ export default async function DashboardPage({
                     <td>
                       <StatusPill status={r.status} />
                     </td>
-                    <td>{Number(r.totalRevenue).toLocaleString()}</td>
-                    <td>{Number(r.totalExpense).toLocaleString()}</td>
+                    <td className="num">{Number(r.totalRevenue).toLocaleString()}</td>
+                    <td className="num">{Number(r.totalExpense).toLocaleString()}</td>
                   </tr>
                 ))}
             </tbody>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Pill } from "./layout";
 
 type ListedUser = {
   id: string;
@@ -152,9 +153,9 @@ export function UsersManager({ currentUserId }: { currentUserId: string }) {
                   <td>{user.name}</td>
                   <td>{user.email}</td>
                   <td>
-                    <span className={`pill ${user.role === "admin" ? "confirmed" : "pending"}`}>{user.role}</span>
+                    <Pill tone={user.role === "admin" ? "confirmed" : "pending"}>{user.role}</Pill>
                   </td>
-                  <td>{user.banned ? <span className="pill review">BANNED</span> : <span className="pill confirmed">ACTIVE</span>}</td>
+                  <td>{user.banned ? <Pill tone="review">BANNED</Pill> : <Pill tone="confirmed">ACTIVE</Pill>}</td>
                   <td>{user.botSettings ? (user.botSettings.isActive ? "active" : "saved") : "—"}</td>
                   <td>{user._count.telegramSenders}</td>
                   <td style={{ whiteSpace: "nowrap" }}>

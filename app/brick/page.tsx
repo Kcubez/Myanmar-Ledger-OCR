@@ -48,7 +48,6 @@ export default async function BrickPage({
   return (
     <AppShell>
       <PageHeader
-        eyebrow="LEDGER DASHBOARD"
         title="Brick"
         sub={`${range.label} · quantity & amount by item`}
         actions={

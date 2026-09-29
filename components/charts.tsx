@@ -1,151 +1,96 @@
 "use client";
 
-/**
- * Zero-dependency SVG charts (BAI monthly-demand-chart pattern).
- * No recharts/d3 — keeps the Vercel bundle small.
- */
-import { useState } from "react";
+import { useId, useState } from "react";
+import { BarChart as MuiBarChart, LineChart, PieChart } from "@mui/x-charts";
 
-const fmt = (n: number) =>
-  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(0)}K` : `${n}`;
+// Keep exact, full-comma amounts everywhere, including axes and tooltips.
+const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
+const LEAF = "#21633e";
+const RED = "#a63434";
+const COLORS = [LEAF, "#548b78", "#88b3a0", "#bc914a", "#657a91"];
+const chartStyle = {
+  "& .MuiChartsGrid-line": { stroke: "#e8ede9", strokeDasharray: "3 5" },
+  "& .MuiChartsAxis-tickLabel": { fill: "#68766d", fontSize: 11 },
+  "& .MuiLineElement-root": { strokeWidth: 2.5 },
+};
 
 export function TrendChart({ data }: { data: { label: string; a: number; b: number }[] }) {
-  const [hover, setHover] = useState<number | null>(null);
-  const w = 680;
-  const h = 260;
-  const pad = { top: 20, right: 16, bottom: 36, left: 52 };
-  const pw = w - pad.left - pad.right;
-  const ph = h - pad.top - pad.bottom;
-  const max = Math.max(...data.map((d) => Math.max(d.a, d.b)), 1);
-  const x = (i: number) => pad.left + (pw / Math.max(data.length - 1, 1)) * i;
-  const y = (v: number) => pad.top + ph - (v / max) * ph;
-  const line = (key: "a" | "b") => data.map((d, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(d[key])}`).join(" ");
-  const ticks = [0, 1, 2, 3, 4].map((i) => ({ v: Math.round((max / 4) * (4 - i)), y: pad.top + (ph / 4) * i }));
-  const every = Math.max(1, Math.ceil(data.length / 12));
+  const id = useId().replace(/:/g, "");
+  const series = [
+    { id: "revenue", dataKey: "a", label: "Revenue", color: LEAF, valueFormatter: (v: number | null) => v === null ? "—" : `${fmt(v)} Ks` },
+    { id: "expense", dataKey: "b", label: "Expense", color: RED, valueFormatter: (v: number | null) => v === null ? "—" : `${fmt(v)} Ks` },
+  ];
+  const yAxis = [{ width: 96, min: 0, tickNumber: 4, disableLine: true, disableTicks: true, valueFormatter: (v: number) => fmt(v) }];
   return (
-    <div style={{ position: "relative" }}>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        style={{ width: "100%", height: "auto", display: "block" }}
-        role="img"
-        aria-label="Revenue vs expense trend"
-        onMouseLeave={() => setHover(null)}
-      >
-        {ticks.map((t) => (
-          <g key={t.y}>
-            <line x1={pad.left} x2={w - pad.right} y1={t.y} y2={t.y} stroke="#d8e1d8" strokeWidth="1" />
-            <text x={pad.left - 8} y={t.y + 4} textAnchor="end" fontSize="11" fill="#5f6f63">
-              {fmt(t.v)}
-            </text>
-          </g>
-        ))}
-        <path d={line("a")} fill="none" stroke="#21633e" strokeWidth="3" strokeLinecap="round" />
-        <path d={line("b")} fill="none" stroke="#a63434" strokeWidth="3" strokeLinecap="round" />
-        {data.map((d, i) => (
-          <g key={i}>
-            <circle cx={x(i)} cy={y(d.a)} r={hover === i ? 5 : 3} fill="#21633e" />
-            <circle cx={x(i)} cy={y(d.b)} r={hover === i ? 5 : 3} fill="#a63434" />
-            {i % every === 0 && (
-              <text x={x(i)} y={h - 12} textAnchor="middle" fontSize="11" fill="#5f6f63">
-                {d.label}
-              </text>
-            )}
-            <rect
-              x={x(i) - pw / Math.max(data.length, 1) / 2}
-              y={pad.top}
-              width={pw / Math.max(data.length, 1)}
-              height={ph}
-              fill="transparent"
-              onMouseEnter={() => setHover(i)}
-            />
-          </g>
-        ))}
-        {hover !== null && data[hover] && (
-          <g>
-            <line x1={x(hover)} x2={x(hover)} y1={pad.top} y2={pad.top + ph} stroke="#91c5a1" strokeDasharray="4 3" />
-            <text x={x(hover)} y={pad.top - 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#17241b">
-              {data[hover].label}: {fmt(data[hover].a)} / {fmt(data[hover].b)}
-            </text>
-          </g>
-        )}
-      </svg>
-      <p className="muted" style={{ margin: "4px 0 0" }}>
-        <span style={{ color: "#21633e" }}>● Revenue</span> · <span style={{ color: "#a63434" }}>● Expense</span>
-      </p>
+    <div className="ledger-trend">
+      <div className="chart-meta"><span>Amount · Ks</span><span>{data.length === 1 ? `Daily comparison · ${data[0].label}` : `${data.length} reporting days`}</span></div>
+      {data.length === 1 ? (
+        <MuiBarChart height={270} dataset={data} series={series} borderRadius={5} hideLegend
+          xAxis={[{ scaleType: "band", dataKey: "label", categoryGapRatio: 0.65, barGapRatio: 0.25, disableLine: true, disableTicks: true }]}
+          yAxis={yAxis} grid={{ horizontal: true }} margin={{ top: 16, right: 16, bottom: 8 }}
+          slotProps={{ tooltip: { trigger: "item" } }} sx={chartStyle} />
+      ) : (
+        <LineChart height={270} dataset={data} hideLegend
+          xAxis={[{ scaleType: "point", dataKey: "label", disableLine: true, disableTicks: true, tickLabelInterval: (_v, i) => i % Math.max(1, Math.ceil(data.length / 7)) === 0 }]}
+          yAxis={yAxis}
+          series={series.map((s) => ({ ...s, area: true, curve: "linear" as const, showMark: data.length <= 14 }))}
+          grid={{ horizontal: true }} margin={{ top: 16, right: 24, bottom: 8 }}
+          sx={{ ...chartStyle, "& .MuiAreaElement-series-revenue": { fill: `url(#${id}-revenue)` }, "& .MuiAreaElement-series-expense": { fill: `url(#${id}-expense)` } }}>
+          <defs>{[LEAF, RED].map((color, i) => <linearGradient key={color} id={`${id}-${i === 0 ? "revenue" : "expense"}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity={0.16} /><stop offset="100%" stopColor={color} stopOpacity={0.01} /></linearGradient>)}</defs>
+        </LineChart>
+      )}
+      <div className="chart-legend"><span><i style={{ background: LEAF }} />Revenue</span><span><i style={{ background: RED }} />Expense</span></div>
+      {data.length === 1 && <p className="chart-note">One reporting day in this period. A trend appears as more days are recorded.</p>}
     </div>
   );
 }
 
-const DONUT_COLORS = ["#21633e", "#4d9a6b", "#8fc7a4", "#c98a2b", "#a63434"];
-
 export function DonutChart({ slices }: { slices: { label: string; value: number }[] }) {
-  const total = slices.reduce((s, x) => s + x.value, 0) || 1;
-  const r = 70;
-  const c = 2 * Math.PI * r;
-  const segments = slices.map((s, i) => {
-    const frac = s.value / total;
-    const offset = slices.slice(0, i).reduce((sum, prev) => sum + prev.value / total, 0);
-    return { ...s, frac, offset, color: DONUT_COLORS[i % DONUT_COLORS.length] };
-  });
+  const [hover, setHover] = useState<number | null>(null);
+  const total = slices.reduce((sum, s) => sum + s.value, 0);
+  const active = hover === null ? null : slices[hover];
+  const percent = (value: number) => total > 0 ? `${(value / total * 100).toFixed(1)}%` : "0%";
   return (
-    <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
-      <svg viewBox="0 0 180 180" style={{ width: 170, height: 170 }} role="img" aria-label="Payment split">
-        <circle cx="90" cy="90" r={r} fill="none" stroke="#f0f6f1" strokeWidth="26" />
-        {segments.map((s) => (
-          <circle
-            key={s.label}
-            cx="90"
-            cy="90"
-            r={r}
-            fill="none"
-            stroke={s.color}
-            strokeWidth="26"
-            strokeDasharray={`${s.frac * c} ${c}`}
-            strokeDashoffset={-s.offset * c}
-            transform="rotate(-90 90 90)"
-          />
-        ))}
-        <text x="90" y="86" textAnchor="middle" fontSize="18" fontWeight="800" fill="#17241b">
-          {fmt(total)}
-        </text>
-        <text x="90" y="104" textAnchor="middle" fontSize="11" fill="#5f6f63">
-          Total
-        </text>
-      </svg>
-      <div style={{ display: "grid", gap: 6, fontSize: ".88rem" }}>
-        {segments.map((s) => (
-          <span key={s.label}>
-            <span style={{ color: s.color }}>●</span> {s.label}{" "}
-            <b>{fmt(s.value)}</b> <span className="muted">({Math.round((s.value / total) * 100)}%)</span>
-          </span>
-        ))}
+    <div className="payment-chart">
+      <div className="payment-ring">
+        {total > 0 ? <PieChart width={196} height={196} hideLegend colors={COLORS}
+          series={[{ id: "payment", data: slices.map((s, i) => ({ ...s, id: i })), innerRadius: 72, outerRadius: 94, paddingAngle: 3, cornerRadius: 4,
+            highlightScope: { highlight: "item", fade: "global" }, valueFormatter: (s) => `${fmt(s.value)} Ks · ${percent(s.value)}` }]}
+          highlightedItem={hover === null ? null : { seriesId: "payment", dataIndex: hover }}
+          onHighlightChange={(h) => setHover(h?.dataIndex ?? null)} margin={0} /> : <div className="payment-ring-empty" />}
+        <div className="payment-center"><span>{active ? percent(active.value) : slices.filter(s => s.value > 0).length}</span><small>{active ? active.label : "payment methods"}</small></div>
+      </div>
+      <div className="payment-detail">
+        <div className="payment-total"><span>Total revenue</span><strong>{fmt(total)} <small>Ks</small></strong></div>
+        <div className="payment-rows">{slices.map((s, i) => (
+          <div key={s.label} className="payment-row" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+            <span className="payment-label"><i style={{ background: COLORS[i % COLORS.length] }} />{s.label}</span>
+            <strong>{fmt(s.value)}</strong><span className="payment-percent">{percent(s.value)}</span>
+          </div>
+        ))}</div>
       </div>
     </div>
   );
 }
 
-export function BarChart({ data, color = "#21633e" }: { data: { label: string; value: number }[]; color?: string }) {
-  const w = 680;
-  const rowH = 30;
-  const h = Math.max(data.length * rowH + 16, 60);
-  const max = Math.max(...data.map((d) => d.value), 1);
-  const labelW = 150;
+export function BarChart({ data, color = LEAF }: { data: { label: string; value: number }[]; color?: string }) {
+  const sorted = [...data].sort((a, b) => b.value - a.value);
+  const max = Math.max(...data.map(d => d.value), 0);
+  const min = Math.min(...data.map(d => d.value), 0);
+  if (!data.length) return <p className="chart-note">No data for this period.</p>;
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Bar chart">
-      {data.map((d, i) => {
-        const bw = ((w - labelW - 90) * d.value) / max;
-        return (
-          <g key={`${d.label}-${i}`}>
-            <text x={0} y={i * rowH + 21} fontSize="12" fill="#17241b">
-              {d.label.length > 20 ? `${d.label.slice(0, 19)}…` : d.label}
-            </text>
-            <rect x={labelW} y={i * rowH + 6} width={Math.max(bw, 2)} height={18} rx={4} fill={color} />
-            <text x={labelW + bw + 8} y={i * rowH + 21} fontSize="12" fill="#5f6f63">
-              {fmt(d.value)}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+    <div className="ranked-chart">
+      {sorted.map((d, i) => (
+        <div className="ranked-row" key={`${d.label}-${i}`}>
+          <div className="ranked-label"><span>{d.label.replace(/_/g, " ")}</span><strong>{fmt(d.value)}</strong></div>
+          <MuiBarChart layout="horizontal" height={20} hideLegend borderRadius={4}
+            series={[{ data: [d.value], color, valueFormatter: (v) => v === null ? "—" : fmt(v) }]}
+            xAxis={[{ min, max: max || 1, position: "none" }]}
+            yAxis={[{ scaleType: "band", data: [d.label], position: "none", categoryGapRatio: 0.15 }]}
+            margin={0} slotProps={{ tooltip: { trigger: "item" } }}
+            sx={{ backgroundColor: "#f2f5f2", borderRadius: "5px", "& .MuiBarElement-root": { fillOpacity: i === 0 ? 1 : 0.65 } }} />
+        </div>
+      ))}
+    </div>
   );
 }

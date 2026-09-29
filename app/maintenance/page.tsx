@@ -40,7 +40,6 @@ export default async function MaintenancePage({
   return (
     <AppShell>
       <PageHeader
-        eyebrow="LEDGER DASHBOARD"
         title="Maintenance"
         sub={`${range.label} · spend per vehicle/ship · ${entryCount} lines`}
         actions={<DateFilter />}
