@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireOwner } from "../../../lib/require-owner";
 
+import { entryDateWhere } from "../../../lib/date-filter";
+
 export const dynamic = "force-dynamic";
 
 // DELETE /api/ledger-entries — bulk delete fuel|brick|revenue|expense entries in a UTC range.
@@ -22,63 +24,75 @@ export async function DELETE(req: NextRequest) {
   if ((gte && Number.isNaN(gte.getTime())) || (lte && Number.isNaN(lte.getTime()))) {
     return NextResponse.json({ message: "Invalid gte/lte." }, { status: 400 });
   }
+  if (gte && lte && gte >= lte) {
+    return NextResponse.json({ message: "gte must be before lte." }, { status: 400 });
+  }
   const dateFilter: { gte?: Date; lt?: Date } = {};
   if (gte) dateFilter.gte = gte;
   if (lte) dateFilter.lt = lte;
 
-  const reports = await prisma.dailyReport.findMany({
-    where: { date: dateFilter },
-    select: { id: true },
-  });
-  const ids = reports.map((report) => report.id);
-  let deleted = 0;
-  if (ids.length) {
-    if (body.kind === "fuel") {
-      deleted = (await prisma.fuelEntry.deleteMany({ where: { reportId: { in: ids } } })).count;
-      const sums = await prisma.fuelEntry.groupBy({
-        by: ["reportId"],
-        where: { reportId: { in: ids } },
-        _sum: { inGal: true, outGal: true },
-      });
-      const byReport = new Map(sums.map((row) => [row.reportId, row._sum]));
-      for (const id of ids) {
-        const sum = byReport.get(id);
-        await prisma.dailyReport.update({
-          where: { id },
-          data: { totalFuelIn: sum?.inGal ?? 0, totalFuelOut: sum?.outGal ?? 0 },
+  // A failed total update must roll back the deletion as well.
+  const deleted = await prisma.$transaction(async (tx) => {
+    const rowWhere = { ...entryDateWhere(dateFilter), report: { status: "CONFIRMED" as const } };
+    const reports = await tx.dailyReport.findMany({
+      where: body.kind === "fuel"
+        ? { fuelEntries: { some: rowWhere } }
+        : body.kind === "brick"
+          ? { brickEntries: { some: rowWhere } }
+          : { date: dateFilter },
+      select: { id: true },
+    });
+    const ids = reports.map((report) => report.id);
+    let deleted = 0;
+    if (ids.length) {
+      if (body.kind === "fuel") {
+        deleted = (await tx.fuelEntry.deleteMany({ where: rowWhere })).count;
+        const sums = await tx.fuelEntry.groupBy({
+          by: ["reportId"],
+          where: { reportId: { in: ids } },
+          _sum: { inGal: true, outGal: true },
         });
-      }
-    } else if (body.kind === "brick") {
-      deleted = (await prisma.brickEntry.deleteMany({ where: { reportId: { in: ids } } })).count;
-    } else if (body.kind === "revenue") {
-      deleted = (await prisma.revenueLine.deleteMany({ where: { reportId: { in: ids } } })).count;
-      const sums = await prisma.revenueLine.groupBy({
-        by: ["reportId"],
-        where: { reportId: { in: ids } },
-        _sum: { amount: true },
-      });
-      const byReport = new Map(sums.map((row) => [row.reportId, row._sum]));
-      for (const id of ids) {
-        await prisma.dailyReport.update({
-          where: { id },
-          data: { totalRevenue: byReport.get(id)?.amount ?? BigInt(0) },
+        const byReport = new Map(sums.map((row) => [row.reportId, row._sum]));
+        for (const id of ids) {
+          const sum = byReport.get(id);
+          await tx.dailyReport.update({
+            where: { id },
+            data: { totalFuelIn: sum?.inGal ?? 0, totalFuelOut: sum?.outGal ?? 0 },
+          });
+        }
+      } else if (body.kind === "brick") {
+        deleted = (await tx.brickEntry.deleteMany({ where: rowWhere })).count;
+      } else if (body.kind === "revenue") {
+        deleted = (await tx.revenueLine.deleteMany({ where: { reportId: { in: ids } } })).count;
+        const sums = await tx.revenueLine.groupBy({
+          by: ["reportId"],
+          where: { reportId: { in: ids } },
+          _sum: { amount: true },
         });
-      }
-    } else {
-      deleted = (await prisma.expenseLine.deleteMany({ where: { reportId: { in: ids } } })).count;
-      const sums = await prisma.expenseLine.groupBy({
-        by: ["reportId"],
-        where: { reportId: { in: ids } },
-        _sum: { amount: true },
-      });
-      const byReport = new Map(sums.map((row) => [row.reportId, row._sum]));
-      for (const id of ids) {
-        await prisma.dailyReport.update({
-          where: { id },
-          data: { totalExpense: byReport.get(id)?.amount ?? BigInt(0) },
+        const byReport = new Map(sums.map((row) => [row.reportId, row._sum]));
+        for (const id of ids) {
+          await tx.dailyReport.update({
+            where: { id },
+            data: { totalRevenue: byReport.get(id)?.amount ?? BigInt(0) },
+          });
+        }
+      } else {
+        deleted = (await tx.expenseLine.deleteMany({ where: { reportId: { in: ids } } })).count;
+        const sums = await tx.expenseLine.groupBy({
+          by: ["reportId"],
+          where: { reportId: { in: ids } },
+          _sum: { amount: true },
         });
+        const byReport = new Map(sums.map((row) => [row.reportId, row._sum]));
+        for (const id of ids) {
+          await tx.dailyReport.update({
+            where: { id },
+            data: { totalExpense: byReport.get(id)?.amount ?? BigInt(0) },
+          });
+        }
       }
     }
-  }
+    return deleted;
+  }, { isolationLevel: "Serializable", timeout: 30000 });
   return NextResponse.json({ ok: true, deleted });
 }

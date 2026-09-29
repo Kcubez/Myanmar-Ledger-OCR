@@ -1,10 +1,11 @@
-import { ownerPageOrRedirect } from "../../lib/owner-page";
+import { ExpenseWageDetails } from "../../../components/ExpenseWageDetails";
+import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import Link from "next/link";
-import { prisma } from "../../lib/prisma";
-import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
-import { AppShell, PageHeader, StatCard, StatusPill } from "../../components/layout";
-import { DateFilter } from "../../components/DateFilter";
-import { TrendChart, DonutChart, BarChart } from "../../components/charts";
+import { prisma } from "../../../lib/prisma";
+import { parseDateFilter, rangeWhere } from "../../../lib/date-filter";
+import { PageHeader, StatCard, StatusPill } from "../../../components/layout";
+import { DateFilter } from "../../../components/DateFilter";
+import { TrendChart, DonutChart, BarChart } from "../../../components/charts";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export default async function DashboardPage({
   // in Approvals until reviewed. The pending card + review button below are
   // the pointer there.
   const confirmed = { status: "CONFIRMED" } as const;
-  const [reportRows, revenueAgg, expenseAgg, pendingCount] = await Promise.all([
+  const [reportRows, revenueAgg, expenseAgg, pendingCount, wageLines] = await Promise.all([
     prisma.dailyReport.findMany({
       where: { date: where, ...confirmed },
       orderBy: { date: "asc" },
@@ -44,6 +45,11 @@ export default async function DashboardPage({
       _sum: { amount: true },
     }),
     prisma.dailyReport.count({ where: { status: { in: ["PENDING", "NEEDS_REVIEW"] } } }),
+    prisma.expenseLine.findMany({
+      where: { category: "WAGES", report: { date: where, ...confirmed } },
+      include: { report: { select: { date: true } } },
+      orderBy: [{ report: { date: "desc" } }, { id: "asc" }],
+    }),
   ]);
 
   // Days whose lines were all deleted vanish from the dashboard (stats,
@@ -67,7 +73,7 @@ export default async function DashboardPage({
   };
 
   return (
-    <AppShell>
+    <>
       <PageHeader
         title="Overview"
         sub={`${range.label}`}
@@ -148,11 +154,13 @@ export default async function DashboardPage({
 
       </div>
 
+      <ExpenseWageDetails lines={wageLines} />
+
       <section className="card pad">
         <p className="section-eyebrow">History</p>
         <h2>Recent reports</h2>
-        <div className="table-wrap">
-          <table>
+        <div className="table-wrap ledger-list">
+          <table className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -168,18 +176,18 @@ export default async function DashboardPage({
                 .slice(0, 14)
                 .map((r) => (
                   <tr key={r.id}>
-                    <td>{dayLabel(r.date)}</td>
-                    <td>
+                    <td data-label="Date">{dayLabel(r.date)}</td>
+                    <td data-label="Status">
                       <StatusPill status={r.status} />
                     </td>
-                    <td className="num">{Number(r.totalRevenue).toLocaleString()}</td>
-                    <td className="num">{Number(r.totalExpense).toLocaleString()}</td>
+                    <td data-label="Revenue" className="num">{Number(r.totalRevenue).toLocaleString()}</td>
+                    <td data-label="Expense" className="num">{Number(r.totalExpense).toLocaleString()}</td>
                   </tr>
                 ))}
             </tbody>
           </table>
         </div>
       </section>
-    </AppShell>
+    </>
   );
 }

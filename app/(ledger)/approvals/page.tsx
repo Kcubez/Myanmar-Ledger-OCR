@@ -1,8 +1,8 @@
-import { ownerPageOrRedirect } from "../../lib/owner-page";
-import { prisma } from "../../lib/prisma";
-import { AppShell, PageHeader, StatusPill } from "../../components/layout";
-import { ApprovalButtons } from "../../components/ApprovalButtons";
-import { ReportEditor } from "../../components/ReportEditor";
+import { ownerPageOrRedirect } from "../../../lib/owner-page";
+import { prisma } from "../../../lib/prisma";
+import { PageHeader, StatusPill } from "../../../components/layout";
+import { ApprovalButtons } from "../../../components/ApprovalButtons";
+import { ReportEditor } from "../../../components/ReportEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,7 @@ export default async function ApprovalsPage() {
   });
 
   return (
-    <AppShell>
+    <>
       <PageHeader
         title="Approvals"
         sub={`${reports.length} report(s) awaiting review — oldest first`}
@@ -86,6 +86,6 @@ export default async function ApprovalsPage() {
           })}
         </div>
       )}
-    </AppShell>
+    </>
   );
 }

@@ -1,12 +1,12 @@
-import { ownerPageOrRedirect } from "../../lib/owner-page";
-import { prisma } from "../../lib/prisma";
-import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
-import { AppShell, PageHeader, StatCard } from "../../components/layout";
-import { DateFilter } from "../../components/DateFilter";
-import { DeleteRangeButton } from "../../components/DeleteRangeButton";
-import { DeleteRowButton } from "../../components/DeleteRowButton";
-import { RowEditModal } from "../../components/QuickEditModal";
-import { BarChart } from "../../components/charts";
+import { ownerPageOrRedirect } from "../../../lib/owner-page";
+import { prisma } from "../../../lib/prisma";
+import { parseDateFilter, rangeWhere, entryDateWhere } from "../../../lib/date-filter";
+import { PageHeader, StatCard } from "../../../components/layout";
+import { DateFilter } from "../../../components/DateFilter";
+import { DeleteRangeButton } from "../../../components/DeleteRangeButton";
+import { DeleteRowButton } from "../../../components/DeleteRowButton";
+import { RowEditModal } from "../../../components/QuickEditModal";
+import { BarChart } from "../../../components/charts";
 
 export const dynamic = "force-dynamic";
 
@@ -21,32 +21,33 @@ export default async function FuelPage({
 
   // CONFIRMED only — pending reports are reviewed in Approvals first.
   const confirmed = { status: "CONFIRMED" } as const;
+  const entryWhere = { ...entryDateWhere(where), report: confirmed };
   const [byParticular, mismatches, recent, entryCount] = await Promise.all([
     prisma.fuelEntry.groupBy({
       by: ["particular"],
-      where: { report: { date: where, ...confirmed } },
+      where: { ...entryWhere },
       _sum: { inGal: true, outGal: true },
     }),
     prisma.fuelEntry.findMany({
-      where: { balanceOk: false, report: { date: where, ...confirmed } },
+      where: { balanceOk: false, ...entryWhere },
       orderBy: { id: "desc" },
       take: 20,
       include: { report: { select: { date: true } } },
     }),
     prisma.fuelEntry.findMany({
-      where: { report: { date: where, ...confirmed } },
+      where: { ...entryWhere },
       orderBy: { id: "asc" },
       take: 30,
       include: { report: { select: { date: true } } },
     }),
-    prisma.fuelEntry.count({ where: { report: { date: where, ...confirmed } } }),
+    prisma.fuelEntry.count({ where: { ...entryWhere } }),
   ]);
 
   const totalIn = byParticular.reduce((s, row) => s + Number(row._sum.inGal ?? 0), 0);
   const totalOut = byParticular.reduce((s, row) => s + Number(row._sum.outGal ?? 0), 0);
 
   return (
-    <AppShell>
+    <>
       <PageHeader
         title="Fuel"
         sub={`${range.label} · gallons in/out per particular`}
@@ -104,8 +105,8 @@ export default async function FuelPage({
       {mismatches.length > 0 && (
         <section className="card pad" style={{ borderColor: "#e5b9b9" }}>
           <h2>⚠️ Balance mismatches ({mismatches.length})</h2>
-          <div className="table-wrap">
-            <table>
+          <div className="table-wrap ledger-list">
+            <table className="responsive-ledger" role="table">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -118,11 +119,11 @@ export default async function FuelPage({
               <tbody>
                 {mismatches.map((row) => (
                   <tr key={row.id}>
-                    <td>{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
-                    <td>{row.particular || row.vehicle || "—"}</td>
-                    <td>{row.inGal?.toString() ?? "—"}</td>
-                    <td>{row.outGal?.toString() ?? "—"}</td>
-                    <td>{row.balanceGal?.toString() ?? "—"}</td>
+                    <td data-label="Date">{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
+                    <td data-label="Particular">{row.particular || row.vehicle || "—"}</td>
+                    <td data-label="In">{row.inGal?.toString() ?? "—"}</td>
+                    <td data-label="Out">{row.outGal?.toString() ?? "—"}</td>
+                    <td data-label="Balance">{row.balanceGal?.toString() ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -133,8 +134,8 @@ export default async function FuelPage({
 
       <section className="card pad" style={{ marginTop: 16 }}>
         <h2>Recent entries</h2>
-        <div className="table-wrap">
-          <table>
+        <div className="table-wrap ledger-list">
+          <table className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -150,14 +151,14 @@ export default async function FuelPage({
                 const dateKey = (row.date ?? row.report.date).toISOString().slice(0, 10);
                 return (
                   <tr key={row.id}>
-                    <td>{dateKey}</td>
-                    <td>{row.particular || row.vehicle || "—"}</td>
-                    <td>{row.inGal?.toString() ?? "—"}</td>
-                    <td>{row.outGal?.toString() ?? "—"}</td>
-                    <td>{row.balanceGal?.toString() ?? "—"}</td>
-                    <td>
+                    <td data-label="Date">{dateKey}</td>
+                    <td data-label="Particular">{row.particular || row.vehicle || "—"}</td>
+                    <td data-label="In">{row.inGal?.toString() ?? "—"}</td>
+                    <td data-label="Out">{row.outGal?.toString() ?? "—"}</td>
+                    <td data-label="Balance">{row.balanceGal?.toString() ?? "—"}</td>
+                    <td data-label="Action">
                       <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                        <RowEditModal dateKey={dateKey} kind="fuel" rowId={row.id} />
+                        <RowEditModal dateKey={row.report.date.toISOString().slice(0, 10)} kind="fuel" rowId={row.id} />
                         <DeleteRowButton deleteUrl={`/api/fuel-entries/${row.id}`} label="fuel entry" />
                       </span>
                     </td>
@@ -168,6 +169,6 @@ export default async function FuelPage({
           </table>
         </div>
       </section>
-    </AppShell>
+    </>
   );
 }

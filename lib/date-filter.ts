@@ -114,3 +114,13 @@ export function rangeWhere(range: DateRange): { gte?: Date; lt?: Date } {
 export function todayUtc(): Date {
   return startOfUtcDay(new Date());
 }
+
+/** Fuel/brick use their content row date; only legacy null dates fall back. */
+export function entryDateWhere(date: { gte?: Date; lt?: Date }) {
+  return {
+    OR: [
+      { date },
+      { date: null, report: { date } },
+    ],
+  };
+}

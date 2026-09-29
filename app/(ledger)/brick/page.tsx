@@ -1,12 +1,12 @@
-import { ownerPageOrRedirect } from "../../lib/owner-page";
-import { prisma } from "../../lib/prisma";
-import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
-import { AppShell, PageHeader, StatCard } from "../../components/layout";
-import { DateFilter } from "../../components/DateFilter";
-import { DeleteRangeButton } from "../../components/DeleteRangeButton";
-import { DeleteRowButton } from "../../components/DeleteRowButton";
-import { RowEditModal } from "../../components/QuickEditModal";
-import { BarChart } from "../../components/charts";
+import { ownerPageOrRedirect } from "../../../lib/owner-page";
+import { prisma } from "../../../lib/prisma";
+import { parseDateFilter, rangeWhere, entryDateWhere } from "../../../lib/date-filter";
+import { PageHeader, StatCard } from "../../../components/layout";
+import { DateFilter } from "../../../components/DateFilter";
+import { DeleteRangeButton } from "../../../components/DeleteRangeButton";
+import { DeleteRowButton } from "../../../components/DeleteRowButton";
+import { RowEditModal } from "../../../components/QuickEditModal";
+import { BarChart } from "../../../components/charts";
 
 export const dynamic = "force-dynamic";
 
@@ -21,32 +21,33 @@ export default async function BrickPage({
 
   // CONFIRMED only — pending reports are reviewed in Approvals first.
   const confirmed = { status: "CONFIRMED" } as const;
+  const entryWhere = { ...entryDateWhere(where), report: confirmed };
   const [byItem, lowConfidence, recent, entryCount] = await Promise.all([
     prisma.brickEntry.groupBy({
       by: ["item"],
-      where: { report: { date: where, ...confirmed } },
+      where: { ...entryWhere },
       _sum: { amount: true, qty: true },
     }),
     prisma.brickEntry.findMany({
-      where: { report: { date: where, ...confirmed }, OR: [{ confidence: { lt: 0.5 } }, { confidence: null }] },
+      where: { AND: [entryWhere, { OR: [{ confidence: { lt: 0.5 } }, { confidence: null }] }] },
       orderBy: { id: "desc" },
       take: 20,
       include: { report: { select: { date: true } } },
     }),
     prisma.brickEntry.findMany({
-      where: { report: { date: where, ...confirmed } },
+      where: { ...entryWhere },
       orderBy: { id: "asc" },
       take: 30,
       include: { report: { select: { date: true } } },
     }),
-    prisma.brickEntry.count({ where: { report: { date: where, ...confirmed } } }),
+    prisma.brickEntry.count({ where: { ...entryWhere } }),
   ]);
 
   const totalAmount = byItem.reduce((s, row) => s + Number(row._sum.amount ?? 0), 0);
   const totalQty = byItem.reduce((s, row) => s + Number(row._sum.qty ?? 0), 0);
 
   return (
-    <AppShell>
+    <>
       <PageHeader
         title="Brick"
         sub={`${range.label} · quantity & amount by item`}
@@ -88,8 +89,8 @@ export default async function BrickPage({
       {lowConfidence.length > 0 && (
         <section className="card pad" style={{ borderColor: "#e5b9b9" }}>
           <h2>⚠️ Low-confidence rows ({lowConfidence.length}) — review in Approvals queue</h2>
-          <div className="table-wrap">
-            <table>
+          <div className="table-wrap ledger-list">
+            <table className="responsive-ledger" role="table">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -101,10 +102,10 @@ export default async function BrickPage({
               <tbody>
                 {lowConfidence.map((row) => (
                   <tr key={row.id}>
-                    <td>{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
-                    <td>{row.item}</td>
-                    <td>{row.qty?.toString() ?? "—"}</td>
-                    <td>{row.amount?.toString() ?? "—"}</td>
+                    <td data-label="Date">{(row.date ?? row.report.date).toISOString().slice(0, 10)}</td>
+                    <td data-label="Item">{row.item}</td>
+                    <td data-label="Qty">{row.qty?.toString() ?? "—"}</td>
+                    <td data-label="Amount">{row.amount?.toString() ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -115,8 +116,8 @@ export default async function BrickPage({
 
       <section className="card pad" style={{ marginTop: 16 }}>
         <h2>Recent entries</h2>
-        <div className="table-wrap">
-          <table>
+        <div className="table-wrap ledger-list">
+          <table className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -132,14 +133,14 @@ export default async function BrickPage({
                 const dateKey = (row.date ?? row.report.date).toISOString().slice(0, 10);
                 return (
                   <tr key={row.id}>
-                    <td>{dateKey}</td>
-                    <td>{row.item}</td>
-                    <td>{row.qty?.toString() ?? "—"}</td>
-                    <td>{row.unitPrice?.toString() ?? "—"}</td>
-                    <td>{row.amount?.toString() ?? "—"}</td>
-                    <td>
+                    <td data-label="Date">{dateKey}</td>
+                    <td data-label="Item">{row.item}</td>
+                    <td data-label="Qty">{row.qty?.toString() ?? "—"}</td>
+                    <td data-label="Unit price">{row.unitPrice?.toString() ?? "—"}</td>
+                    <td data-label="Amount">{row.amount?.toString() ?? "—"}</td>
+                    <td data-label="Action">
                       <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                        <RowEditModal dateKey={dateKey} kind="brick" rowId={row.id} />
+                        <RowEditModal dateKey={row.report.date.toISOString().slice(0, 10)} kind="brick" rowId={row.id} />
                         <DeleteRowButton deleteUrl={`/api/brick-entries/${row.id}`} label="brick entry" />
                       </span>
                     </td>
@@ -150,6 +151,6 @@ export default async function BrickPage({
           </table>
         </div>
       </section>
-    </AppShell>
+    </>
   );
 }

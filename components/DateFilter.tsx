@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
 type Mode = "overall" | "day" | "month" | "year" | "custom";
 
@@ -26,6 +26,7 @@ function isoDay(year: number, month: number, day: number): string {
  */
 export function DateFilter() {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const now = new Date();
@@ -50,7 +51,7 @@ export function DateFilter() {
       if (value === undefined) params.delete(key);
       else params.set(key, value);
     }
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    startTransition(() => router.replace(`${pathname}?${params.toString()}`, { scroll: false }));
   }
 
   function setMode(next: Mode) {
@@ -75,8 +76,10 @@ export function DateFilter() {
   }
 
   return (
-    <div
+    <fieldset disabled={isPending} aria-busy={isPending}
       style={{
+        margin: 0,
+        minWidth: 0,
         display: "flex",
         alignItems: "center",
         gap: 6,
@@ -161,7 +164,8 @@ export function DateFilter() {
           />
         </>
       )}
-    </div>
+      <span role="status" className="muted">{isPending ? "Updating… / ပြောင်းလဲနေသည်…" : ""}</span>
+    </fieldset>
   );
 }
 

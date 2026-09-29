@@ -1,11 +1,11 @@
-import { ownerPageOrRedirect } from "../../lib/owner-page";
-import { prisma } from "../../lib/prisma";
-import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
-import { AppShell, PageHeader, StatCard } from "../../components/layout";
-import { DateFilter } from "../../components/DateFilter";
-import { DeleteRangeButton } from "../../components/DeleteRangeButton";
-import { QuickEditModal } from "../../components/QuickEditModal";
-import { DonutChart } from "../../components/charts";
+import { ownerPageOrRedirect } from "../../../lib/owner-page";
+import { prisma } from "../../../lib/prisma";
+import { parseDateFilter, rangeWhere } from "../../../lib/date-filter";
+import { PageHeader, StatCard } from "../../../components/layout";
+import { DateFilter } from "../../../components/DateFilter";
+import { DeleteRangeButton } from "../../../components/DeleteRangeButton";
+import { QuickEditModal } from "../../../components/QuickEditModal";
+import { DonutChart } from "../../../components/charts";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +62,7 @@ export default async function RevenuePage({
   })).filter((row) => row.value > 0);
 
   return (
-    <AppShell>
+    <>
       <PageHeader
         title="Revenue"
         sub={`${range.label} · daily payment split · ${lineCount} lines`}
@@ -97,8 +97,8 @@ export default async function RevenuePage({
 
       <section className="card pad" style={{ marginTop: 16 }}>
         <h2>Daily revenue</h2>
-        <div className="table-wrap">
-          <table>
+        <div className="table-wrap ledger-list">
+          <table className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -114,14 +114,14 @@ export default async function RevenuePage({
             <tbody>
               {days.map(([key, day]) => (
                 <tr key={key}>
-                  <td>{key}</td>
-                  <td>{Math.round(day.total).toLocaleString()}</td>
-                  <td>{Math.round(day.methods.CASH ?? 0).toLocaleString()}</td>
-                  <td>{Math.round(day.methods.KBZ_PAY ?? 0).toLocaleString()}</td>
-                  <td>{Math.round(day.methods.MMQR ?? 0).toLocaleString()}</td>
-                  <td>{Math.round(day.methods.KBZ_SPECIAL ?? 0).toLocaleString()}</td>
-                  <td>{Math.round(day.methods.AYA_SPECIAL ?? 0).toLocaleString()}</td>
-                  <td>
+                  <td data-label="Date">{key}</td>
+                  <td data-label="Total">{Math.round(day.total).toLocaleString()}</td>
+                  <td data-label="Cash">{Math.round(day.methods.CASH ?? 0).toLocaleString()}</td>
+                  <td data-label="KBZ Pay">{Math.round(day.methods.KBZ_PAY ?? 0).toLocaleString()}</td>
+                  <td data-label="MMQR">{Math.round(day.methods.MMQR ?? 0).toLocaleString()}</td>
+                  <td data-label="KBZ Sp">{Math.round(day.methods.KBZ_SPECIAL ?? 0).toLocaleString()}</td>
+                  <td data-label="AYA Sp">{Math.round(day.methods.AYA_SPECIAL ?? 0).toLocaleString()}</td>
+                  <td data-label="Action">
                     <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                       <QuickEditModal dateKey={key} kind="revenue" />
                       <DeleteRangeButton
@@ -140,6 +140,6 @@ export default async function RevenuePage({
           </table>
         </div>
       </section>
-    </AppShell>
+    </>
   );
 }

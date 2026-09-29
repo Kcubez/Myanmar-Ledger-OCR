@@ -39,7 +39,7 @@ import {
   type ExtractReason,
 } from "../../../../lib/extract";
 import { revenuePrompt, parseRevenueResponse } from "../../../../lib/extract/revenue";
-import { expensePrompt, parseExpenseResponse } from "../../../../lib/extract/expense";
+import { expensePrompt, parseExpenseResponse, operationIsWageSubtotal } from "../../../../lib/extract/expense";
 import { maintenancePrompt, parseMaintenanceResponse } from "../../../../lib/extract/maintenance";
 import { fuelPrompt, parseFuelResponse } from "../../../../lib/extract/fuel";
 import { brickPrompt, parseBrickResponse } from "../../../../lib/extract/brick";
@@ -553,7 +553,7 @@ async function processPhoto(
     botToken,
     chatId,
     text: buildExtractSummaryMessage({ summary: extracted.summary, dateKey: key, mode, added, skipped }),
-    replyMarkup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: `confirm:${report.id}` }]] },
+    replyMarkup: { inline_keyboard: [[{ text: "Submit for review / စစ်ဆေးရန်ပို့မည်", callback_data: `confirm:${report.id}` }]] },
   });
   // Remember the bot's reply so approval flows can edit it in place later.
   if (summaryMsg) {
@@ -699,7 +699,9 @@ async function persistLines(tx: Tx, reportId: string, mode: LedgerType, extracte
       const rows: { reportId: string; category: "BUSINESS_DRAWING" | "PERSONAL_DRAWING" | "OPERATION" | "WAGES"; name: string | null; amount: bigint }[] = [];
       if (payload.header.business_drawing) rows.push({ reportId, category: "BUSINESS_DRAWING", name: null, amount: big(payload.header.business_drawing) });
       if (payload.header.personal_drawing) rows.push({ reportId, category: "PERSONAL_DRAWING", name: null, amount: big(payload.header.personal_drawing) });
-      if (payload.header.operation) rows.push({ reportId, category: "OPERATION", name: null, amount: big(payload.header.operation) });
+      // Labour detail replaces its matching subtotal, never adds to it.
+      const labourSubtotal = operationIsWageSubtotal({ ...payload.header, wages: payload.wages });
+      if (payload.header.operation && !labourSubtotal) rows.push({ reportId, category: "OPERATION", name: null, amount: big(payload.header.operation) });
       for (const wage of payload.wages) {
         rows.push({ reportId, category: "WAGES", name: wage.name || null, amount: big(wage.amount) });
       }

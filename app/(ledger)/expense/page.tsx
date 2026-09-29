@@ -1,11 +1,12 @@
-import { ownerPageOrRedirect } from "../../lib/owner-page";
-import { prisma } from "../../lib/prisma";
-import { parseDateFilter, rangeWhere } from "../../lib/date-filter";
-import { AppShell, PageHeader, StatCard } from "../../components/layout";
-import { DateFilter } from "../../components/DateFilter";
-import { DeleteRangeButton } from "../../components/DeleteRangeButton";
-import { QuickEditModal } from "../../components/QuickEditModal";
-import { BarChart } from "../../components/charts";
+import { ExpenseWageDetails } from "../../../components/ExpenseWageDetails";
+import { ownerPageOrRedirect } from "../../../lib/owner-page";
+import { prisma } from "../../../lib/prisma";
+import { parseDateFilter, rangeWhere } from "../../../lib/date-filter";
+import { PageHeader, StatCard } from "../../../components/layout";
+import { DateFilter } from "../../../components/DateFilter";
+import { DeleteRangeButton } from "../../../components/DeleteRangeButton";
+import { QuickEditModal } from "../../../components/QuickEditModal";
+import { BarChart } from "../../../components/charts";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export default async function ExpensePage({
   })).filter((row) => row.value > 0);
 
   return (
-    <AppShell>
+    <>
       <PageHeader
         title="Expense"
         sub={`${range.label} · daily OPEX split · ${lineCount} lines`}
@@ -91,8 +92,8 @@ export default async function ExpensePage({
 
       <section className="card pad" style={{ marginTop: 16 }}>
         <h2>Daily expense</h2>
-        <div className="table-wrap">
-          <table>
+        <div className="table-wrap ledger-list">
+          <table className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -107,13 +108,13 @@ export default async function ExpensePage({
             <tbody>
               {days.map(([key, day]) => (
                 <tr key={key}>
-                  <td>{key}</td>
-                  <td>{Math.round(day.total).toLocaleString()}</td>
-                  <td>{Math.round(day.cats.BUSINESS_DRAWING ?? 0).toLocaleString()}</td>
-                  <td>{Math.round(day.cats.PERSONAL_DRAWING ?? 0).toLocaleString()}</td>
-                  <td>{Math.round(day.cats.OPERATION ?? 0).toLocaleString()}</td>
-                  <td>{day.wages === 0 ? "—" : `${day.wages} rows · ${Math.round(day.cats.WAGES ?? 0).toLocaleString()}`}</td>
-                  <td>
+                  <td data-label="Date">{key}</td>
+                  <td data-label="Total">{Math.round(day.total).toLocaleString()}</td>
+                  <td data-label="Business">{Math.round(day.cats.BUSINESS_DRAWING ?? 0).toLocaleString()}</td>
+                  <td data-label="Personal">{Math.round(day.cats.PERSONAL_DRAWING ?? 0).toLocaleString()}</td>
+                  <td data-label="Operation">{Math.round(day.cats.OPERATION ?? 0).toLocaleString()}</td>
+                  <td data-label="Wages">{day.wages === 0 ? "—" : `${day.wages} rows · ${Math.round(day.cats.WAGES ?? 0).toLocaleString()}`}</td>
+                  <td data-label="Action">
                     <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                       <QuickEditModal dateKey={key} kind="expense" />
                       <DeleteRangeButton
@@ -132,6 +133,7 @@ export default async function ExpensePage({
           </table>
         </div>
       </section>
-    </AppShell>
+      <ExpenseWageDetails lines={lines.filter(line => line.category === "WAGES")} />
+    </>
   );
 }

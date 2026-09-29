@@ -97,3 +97,17 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-vi
 .dashboard-expense { grid-column:1; }
 @media (max-width:1100px) { .dashboard-charts { grid-template-columns:1fr; }.dashboard-trend,.dashboard-payment,.dashboard-expense { grid-column:auto; grid-row:auto; } }
 @media (max-width:600px) { .dashboard-charts > .card { padding:18px 14px; }.payment-row { gap:6px; }.chart-meta { font-size:.66rem; } }
+
+.route-feedback { max-width:640px; margin:64px auto; padding:24px; }
+.loading-placeholder { height:96px; margin-top:16px; background:var(--soft); border:1px solid var(--line); border-radius:12px; }
+@media (max-width:760px) {
+  .ledger-list { border:0; overflow:visible; }
+  .responsive-ledger { display:block; width:100%; min-width:0; }
+  .responsive-ledger thead { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  .responsive-ledger tbody { display:grid; gap:14px; }
+  .responsive-ledger tbody tr { display:block; border:1px solid var(--line); border-radius:12px; padding:8px 12px; }
+  .ledger-list .responsive-ledger tbody td { display:flex; justify-content:space-between; align-items:baseline; gap:16px; padding:9px 0; white-space:normal; text-align:right; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+  .responsive-ledger td::before { content:attr(data-label); color:var(--muted); font-size:.78rem; text-align:left; flex:0 0 32%; }
+  .responsive-ledger td > span { flex-wrap:wrap; justify-content:flex-end; }
+  .responsive-ledger td button { min-height:44px; }
+}

@@ -222,12 +222,11 @@ export function PageHeader({
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, role }: { children: React.ReactNode; role: "admin" | "user" }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<number | null>(null);
-  const [role, setRole] = useState<"admin" | "user" | null>(null);
   const narrow = useMediaQuery("(max-width:1024px)");
 
   function refreshPending() {
@@ -238,27 +237,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    authClient
-      .getSession()
-      .then((s) => {
-        const admin = (s?.data?.user as { role?: string } | undefined)?.role === "admin";
-        setRole(admin ? "admin" : "user");
-        if (!admin) {
-          refreshPending();
-        } else {
-          setPending(null);
-        }
-      })
-      .catch(() => setRole("user"));
-  }, [pathname]);
+    if (role === "user") refreshPending();
+  }, [pathname, role]);
 
   // Approve/reject actions refresh server content without changing pathname,
   // so the badge would go stale — action buttons dispatch this event.
   useEffect(() => {
+    if (role !== "user") return;
     const onPendingChanged = () => refreshPending();
     window.addEventListener("pending-changed", onPendingChanged);
     return () => window.removeEventListener("pending-changed", onPendingChanged);
-  }, []);
+  }, [role]);
 
   const isAdmin = role === "admin";
 
@@ -290,13 +279,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Typography sx={{ fontWeight: 700 }}>Ledger</Typography>
         {narrow && <IconButton aria-label="Close menu" onClick={() => setOpen(false)} sx={{ ml: "auto", width: 44, height: 44 }}>×</IconButton>}
       </Box>
-      {role === null ? (
-        <Typography className="muted" sx={{ px: 1.5, py: 1.25 }}>
-          Loading…
-        </Typography>
-      ) : (
-        <NavLinks links={links} pathname={pathname} pending={pending} onNavigate={() => setOpen(false)} />
-      )}
+      <NavLinks links={links} pathname={pathname} pending={pending} onNavigate={() => setOpen(false)} />
       <Box sx={{ mt: "auto", pt: 2, borderTop: "1px solid var(--line)" }}>
         <Button
           fullWidth

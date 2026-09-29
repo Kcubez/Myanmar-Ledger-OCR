@@ -39,103 +39,15 @@ export function buildMainMenuButtons() {
 }
 
 export function getFormatPromptForMode(mode: LedgerType | null | undefined): string {
-  switch (mode) {
-    case "revenue":
-      return [
-        "💰 ━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "  <b>Revenue Mode — ဝင်ငွေ</b>",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "ဒီနေ့ revenue summary စာမျက်နှာကို photo ရိုက်ပို့ပါ။",
-        "Payment ခွဲချက်များ —",
-        "<pre>",
-        "Total Revenue",
-        "Cash Income",
-        "KBZ Pay",
-        "MMQR",
-        "KBZ Banking (Special)",
-        "AYA Banking (Special)",
-        "</pre>",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-      ].join("\n");
-    case "expense":
-      return [
-        "💸 ━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "  <b>Expense Mode — ထွက်ငွေ (OPEX)</b>",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "Expense + daily wages စာမျက်နှာကို photo ရိုက်ပို့ပါ။",
-        "<pre>",
-        "Total Expense",
-        "Business Drawing",
-        "Personal Drawing",
-        "Operation Expense",
-        "Drivers / Workers + amount",
-        "</pre>",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-      ].join("\n");
-    case "maintenance":
-      return [
-        "🔧 ━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "  <b>Maintenance Mode — ပြုပြင်ထိန်းသိမ်းမှု</b>",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "Maintenance table ကို photo ရိုက်ပို့ပါ။",
-        "<pre>",
-        "Vehicle / Ship",
-        "Amount",
-        "Part (Gear Box, Engine oil…)",
-        "</pre>",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-      ].join("\n");
-    case "fuel":
-      return [
-        "⛽ ━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "  <b>Fuel Mode — ဆီ</b>",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "Fuel ledger (Date | Particular | In | Out | Balance) ကို photo ရိုက်ပို့ပါ။",
-        "လက်ရှိစာမျက်နှာအတိုင်း ပို့လို့ရပါတယ် — ရက်စွဲအလိုက် ပေါင်းထည့်ပေးမည်။",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-      ].join("\n");
-    case "brick":
-      return [
-        "🧱 ━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "  <b>Brick Mode — အုတ်</b>",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "Brick ledger စာမျက်နှာကို photo ရိုက်ပို့ပါ။",
-        "လက်ရေးစာများ မရှင်းရင် dashboard မှာ ပြင်နိုင်ပါသည်။",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-      ].join("\n");
-    default:
-      return [
-        "🤖 ━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "  <b>Ledger Bot</b>",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "/menu မှ ledger အမျိုးအစားရွေးပြီးမှ photo တင်ပါ။",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━",
-      ].join("\n");
-  }
+  if (!mode) return "<b>Ledger Bot</b>\nChoose a ledger from /menu, then send a clear photo.\n/menu မှ စာရင်းအမျိုးအစားရွေးပြီး ကြည်လင်သောပုံ ပို့ပါ။";
+  const instructions: Record<LedgerType, string> = {
+    revenue: "Include the total and all payment methods.\nစုစုပေါင်းနှင့် ငွေပေးချေမှုခွဲချက်အားလုံး ပါအောင်ပို့ပါ။",
+    expense: "Include BOTH the expense summary and labour details in one photo. Labour details are part of the subtotal, not an extra charge.\nအပေါ်ကအနှစ်ချုပ်နှင့် အောက်ကလုပ်အားခအသေးစိတ် နှစ်ပိုင်းလုံးပါအောင် ပို့ပါ။ လုပ်အားခကို နှစ်ခါမပေါင်းပါ။",
+    maintenance: "Include date, vehicle/ship, amount and repair item.\nရက်စွဲ၊ ယာဉ်/သင်္ဘော၊ ငွေပမာဏနှင့် ပြုပြင်သည့်ပစ္စည်း ပါအောင်ပို့ပါ။",
+    fuel: "Send each page in order, including Date, Particular, In, Out and Balance. Multiple photos are accepted.\nရက်စွဲ၊ အကြောင်းအရာ၊ အဝင်၊ အထွက်၊ လက်ကျန် ပါအောင် စာမျက်နှာအစဉ်လိုက် ပို့ပါ။ ပုံများစွာ တင်နိုင်ပါသည်။",
+    brick: "Include column headings and all rows. Unclear handwriting needs dashboard review.\nခေါင်းစဉ်နှင့် စာကြောင်းအားလုံး ပါအောင်ပို့ပါ။ မရှင်းသောလက်ရေးကို dashboard တွင် စစ်ဆေးပါ။",
+  };
+  return `<b>${ledgerLabel(mode)}</b>\n\n${instructions[mode]}\n\nKeep the page flat and well lit.\nစာမျက်နှာကို ပြန့်ပြန့်ထားပြီး အလင်းကောင်းကောင်းဖြင့် ရိုက်ပါ။`;
 }
 
 /**
@@ -150,16 +62,10 @@ export function buildExtractSummaryMessage(opts: {
   added: number;
   skipped: number;
 }): string {
-  const note =
-    opts.mode === "fuel" || opts.mode === "brick"
-      ? `\n➕ စာကြောင်း ${opts.added} ကြောင်း ပေါင်းထည့်ပြီးပါပြီ${
-          opts.skipped ? ` · ထပ်နေသော ${opts.skipped} ကြောင်း ကျော်ထားသည်` : ""
-        }`
-      : `\n📌 ယနေ့စာရင်းအဟောင်းရှိပါက ယခုတင်သောအသစ်ဖြင့် အစားထိုးမည်`;
-  return (
-    `${opts.summary}\n\n📅 ${opts.dateKey} နေ့စာရင်း · ⏳ Review စောင့်နေသည်` +
-    ` — စစ်ပြီးရင် အောက်က Confirm ကိုနှိပ်ပါ${note}`
-  );
+  const note = opts.mode === "fuel" || opts.mode === "brick"
+    ? `Added: ${opts.added} · Duplicates skipped: ${opts.skipped}\nအသစ် ${opts.added} ကြောင်း · ထပ်နေသော ${opts.skipped} ကြောင်း ကျော်ထားသည်။`
+    : "This upload replaces the same ledger for this report date.\nဤစာရင်းရက်စွဲ၏ အမျိုးအစားတူစာရင်းကို ယခုပုံဖြင့် အစားထိုးထားသည်။";
+  return `${opts.summary}\n\n<b>Report date / စာရင်းရက်စွဲ:</b> ${escapeHtml(opts.dateKey)}\n${note}\n\n<b>Pending review / စစ်ဆေးရန်စောင့်နေသည်</b>\nCheck the details, then tap Submit for review. Final approval happens in the dashboard.\nအချက်အလက်စစ်ပြီး စစ်ဆေးရန်ပို့မည် ကိုနှိပ်ပါ။ နောက်ဆုံးအတည်ပြုခြင်းကို dashboard မှ လုပ်ပါမည်။`;
 }
 
 export function getLinkInstructions(): string {  return [

@@ -16,7 +16,7 @@ export default async function AdminUsersPage() {
   if ((session.user as { role?: string }).role !== "admin") redirect("/dashboard");
 
   return (
-    <AppShell>
+    <AppShell role="admin">
       <PageHeader eyebrow="ADMIN" title="Users" sub="Staff web accounts — Telegram linking happens in-bot via /link + OTP" />
       <UsersManager currentUserId={session.user.id} />
     </AppShell>

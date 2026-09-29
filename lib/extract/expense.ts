@@ -29,12 +29,21 @@ const EMPTY: ExpenseData = {
   wages: [],
 };
 
+/** Recognize an exact labour subtotal without altering the source values. */
+export function operationIsWageSubtotal(data: Pick<ExpenseData, "total" | "business_drawing" | "personal_drawing" | "operation" | "wages">): boolean {
+  if (!data.total || !data.operation || !data.business_drawing || !data.personal_drawing || !data.wages.length || data.wages.some(w => !w.amount)) return false;
+  const labour = data.wages.reduce((sum, w) => sum + amountFrom(w.amount), 0);
+  return labour === amountFrom(data.operation) &&
+    amountFrom(data.total) === amountFrom(data.business_drawing) + amountFrom(data.personal_drawing) + labour;
+}
+
 export function expensePrompt(): string {
   return (
     `Extract the daily expense (OPEX) summary from this ledger photo. Return ONLY valid JSON with this exact shape:\n` +
     `{"date":"report date or empty string","total":"total expense in source format or empty string",` +
     `"business_drawing":"amount or empty","personal_drawing":"amount or empty","operation":"operation expense or empty",` +
     `"wages":[{"name":"full text as written (e.g. 6E-4110 Driver, Wheel Loader Operator) or empty","amount":"amount or empty"}]}\n` +
+    `The lower drivers/workers table may be a breakdown of Operation Expense (Labour), not additional expenses. Preserve BOTH the printed operation subtotal and all detail rows; never zero or omit the subtotal to avoid double counting. ` +
     `Do not invent unclear values — use empty strings. Preserve source amount formats. ` +
     `Preserve Myanmar script verbatim — never transliterate.`
   );
@@ -65,12 +74,16 @@ export function parseExpenseResponse(text: string): ExpenseParseResult {
   if (!data.total) unreadable.push("total");
   if (!data.business_drawing) unreadable.push("business_drawing");
   if (!data.personal_drawing) unreadable.push("personal_drawing");
+  wages.forEach((w, i) => {
+    if (!w.name) unreadable.push(`wages[${i}].name`);
+    if (!w.amount) unreadable.push(`wages[${i}].amount`);
+  });
   // Sum check — flag only, never auto-correct (revenue parity).
   const total = amountFrom(data.total);
   const parts =
     amountFrom(data.business_drawing) +
     amountFrom(data.personal_drawing) +
-    amountFrom(data.operation) +
+    (operationIsWageSubtotal(data) ? 0 : amountFrom(data.operation)) +
     wages.reduce((sum, wage) => sum + amountFrom(wage.amount), 0);
   if (data.total && total !== parts) unreadable.push("sum_mismatch");
   let confidence = !data.total && wages.length === 0 ? 0.2 : unreadable.length <= 2 ? 0.85 : 0.55;
