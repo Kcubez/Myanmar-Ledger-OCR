@@ -14,6 +14,7 @@ import {
   getFileInfoFromMessage,
 } from "../../../../lib/telegram/client";
 import {
+  extractionEmptyMessage,
   processingCompleteMessage,
   processingFailedMessage,
   waitingForApprovalMessage,
@@ -507,6 +508,11 @@ async function processPhoto(
     return;
   }
 
+  // Empty/wrong-mode results must not become replacements for approved data.
+  if (extracted.flags.includes("response") || (Array.isArray(extracted.lines) && extracted.lines.length === 0)) {
+    return fail(extractionEmptyMessage);
+  }
+
   // Merge into the CONTENT date's report (upload date = fallback).
   const reportDate = resolveReportDate(extracted.contentDateText);
   const key = dateKey(reportDate);
@@ -570,7 +576,7 @@ async function extractByType(
   try {
     switch (mode) {
       case "revenue": {
-        const { result } = await extractWithKeyRotation({ keys, model, parts: parts(revenuePrompt()), parse: parseRevenueResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(revenuePrompt()), parse: parseRevenueResponse });
         const total = result.data.total || "—";
         return {
           contentDateText: result.data.date, rawText: "", persistKind: mode, lines: result.data.lines,
@@ -580,7 +586,7 @@ async function extractByType(
         };
       }
       case "expense": {
-        const { result } = await extractWithKeyRotation({ keys, model, parts: parts(expensePrompt()), parse: parseExpenseResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(expensePrompt()), parse: parseExpenseResponse });
         return {
           contentDateText: result.data.date, rawText: "", persistKind: mode,
           lines: { header: result.data, wages: result.data.wages },
@@ -589,7 +595,7 @@ async function extractByType(
         };
       }
       case "maintenance": {
-        const { result } = await extractWithKeyRotation({ keys, model, parts: parts(maintenancePrompt()), parse: parseMaintenanceResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(maintenancePrompt()), parse: parseMaintenanceResponse });
         return {
           contentDateText: result.data.date, rawText: "", persistKind: mode, lines: result.data.lines,
           confidence: result.confidence, flags: result.unreadable_fields,
@@ -597,7 +603,7 @@ async function extractByType(
         };
       }
       case "fuel": {
-        const { result } = await extractWithKeyRotation({ keys, model, parts: parts(fuelPrompt()), parse: parseFuelResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(fuelPrompt()), parse: parseFuelResponse });
         const bad = result.data.rows.filter((row: { balance_ok: boolean | null }) => row.balance_ok === false).length;
         return {
           contentDateText: result.data.rows[0]?.date ?? "", rawText: "", persistKind: mode, lines: result.data.rows,
@@ -606,7 +612,7 @@ async function extractByType(
         };
       }
       case "brick": {
-        const { result } = await extractWithKeyRotation({ keys, model, parts: parts(brickPrompt()), parse: parseBrickResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(brickPrompt()), parse: parseBrickResponse });
         const suspect =
           result.unreadable_fields.includes("row_count_suspect") ||
           result.unreadable_fields.includes("duplicate_rows");

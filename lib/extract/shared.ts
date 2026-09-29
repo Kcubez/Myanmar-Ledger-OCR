@@ -165,6 +165,7 @@ export async function extractWithKeyRotation<T>(options: {
   timeoutMs?: number;
   timeoutRetries?: number;
   totalTimeoutMs?: number;
+  diagnosticLabel?: string;
   parse: (text: string) => T;
 }): Promise<{ result: T; usedKey: UsedKey }> {
   const timeoutMs = options.timeoutMs ?? 90_000;
@@ -182,6 +183,8 @@ export async function extractWithKeyRotation<T>(options: {
       const attemptTimeout = Math.min(timeoutMs, remaining);
       const controller = new AbortController();
       attempt += 1;
+      const startedAt = Date.now();
+      const diagnostic = () => ({ model: options.model, ledger: options.diagnosticLabel, slot: index + 1, attempt, elapsedMs: Date.now() - startedAt });
       try {
         // Own retry policy here: SDK defaults to 5 attempts and would otherwise
         // multiply retries across all project keys behind this loop.
@@ -205,9 +208,11 @@ export async function extractWithKeyRotation<T>(options: {
           attemptTimeout,
           controller,
         );
+        if (options.diagnosticLabel) console.info("Gemini request completed", { ...diagnostic(), finishReason: response.candidates?.[0]?.finishReason, outputChars: response.text?.length ?? 0 });
         const result = options.parse(response.text ?? "{}");
         return { result, usedKey: { slot: index + 1, masked: maskKey(key) } };
       } catch (error) {
+        if (options.diagnosticLabel) console.info("Gemini request failed", diagnostic());
         if (error instanceof TerminalExtractError) throw error;
         if (error instanceof ExtractTimeoutError) {
           if (attempt <= timeoutRetries && Date.now() < deadline) {

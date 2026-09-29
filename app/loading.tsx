@@ -1,9 +1,22 @@
+"use client";
+
+import { Box, CircularProgress } from "@mui/material";
+
 export default function Loading() {
   return (
-    <main className="route-feedback" aria-busy="true">
-      <p role="status">စာရင်းများ ရယူနေသည်…</p>
-      <div className="loading-placeholder" aria-hidden="true" />
-      <div className="loading-placeholder" aria-hidden="true" />
-    </main>
+    <Box
+      component="main"
+      aria-busy="true"
+      sx={{
+        minHeight: "100dvh",
+        display: "grid",
+        placeItems: "center",
+        bgcolor: "var(--background, #f5f7f4)",
+      }}
+    >
+      <CircularProgress size={32} thickness={4} sx={{ color: "var(--leaf, #21633e)" }} />
+    </Box>
   );
 }
+
+

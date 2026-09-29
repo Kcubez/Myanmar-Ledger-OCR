@@ -93,3 +93,5 @@ export function escapeHtml(value: string | null | undefined): string {
 export const processingCompleteMessage = "✅ Extraction complete. Review the summary below.\nပုံဖတ်ပြီးပါပြီ။ အောက်ပါအချက်အလက်များကို စစ်ဆေးပေးပါ။";
 export const processingFailedMessage = "❌ Processing stopped. Please try again later; check Approvals before resending.\nလုပ်ဆောင်မှု ရပ်သွားပါပြီ။ ပြန်မပို့မီ Approvals ကို စစ်ကြည့်ပြီး ခဏကြာမှ ပြန်စမ်းပါ။";
 export const waitingForApprovalMessage = "⏳ Submitted for review. Waiting for dashboard approval.\nစစ်ဆေးရန် ပို့ပြီးပါပြီ။ Dashboard မှ အတည်ပြုချက်ကို စောင့်နေပါသည်။";
+
+export const extractionEmptyMessage = "⚠️ No usable rows found. Check the selected ledger type and resend a clear photo.\nအသုံးပြုနိုင်သော စာရင်းကြောင်း မတွေ့ပါ။ ရွေးထားသော စာရင်းအမျိုးအစားကို စစ်ပြီး ပုံကြည်လင်စွာ ပြန်ပို့ပါ။";
