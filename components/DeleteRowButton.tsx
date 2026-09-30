@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Modal } from "./Modal";
+import { useToast } from "./ToastProvider";
 
 /**
  * Single-row delete for list pages (fuel, maintenance). Confirms via Modal,
@@ -10,20 +11,19 @@ import { Modal } from "./Modal";
  */
 export function DeleteRowButton({ deleteUrl, label }: { deleteUrl: string; label: string }) {
   const router = useRouter();
+  const toast = useToast();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
 
   async function onConfirm() {
     setBusy(true);
-    setError("");
     try {
       const response = await fetch(deleteUrl, { method: "DELETE" });
       if (!response.ok) throw new Error("Delete failed.");
       setConfirming(false);
       router.refresh();
     } catch {
-      setError("Delete failed.");
+      toast.error("Delete failed.");
     } finally {
       setBusy(false);
     }
@@ -40,11 +40,6 @@ export function DeleteRowButton({ deleteUrl, label }: { deleteUrl: string; label
       >
         ×
       </button>
-      {error && (
-        <span role="alert" style={{ color: "#b3261e", fontSize: ".8rem" }}>
-          {error}
-        </span>
-      )}
       <Modal
         open={confirming}
         title={`Delete this ${label}?`}

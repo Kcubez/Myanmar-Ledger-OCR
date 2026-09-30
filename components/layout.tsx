@@ -20,6 +20,7 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import { authClient } from "../lib/auth-client";
+import { useToast } from "./ToastProvider";
 
 const DRAWER_WIDTH = 250;
 
@@ -225,6 +226,7 @@ export function PageHeader({
 export function AppShell({ children, role }: { children: React.ReactNode; role: "admin" | "user" }) {
   const pathname = usePathname();
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<number | null>(null);
   const narrow = useMediaQuery("(max-width:1024px)");
@@ -253,6 +255,7 @@ export function AppShell({ children, role }: { children: React.ReactNode; role: 
 
   async function signOut() {
     await authClient.signOut();
+    toast.success("Signed out.");
     router.push("/login");
   }
 

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Alert,
   Box,
   Button,
   CircularProgress,
@@ -11,19 +10,19 @@ import {
   InputAdornment,
   TextField,
 } from "@mui/material";
+import { useToast } from "../../components/ToastProvider";
 
 export function SetupForm() {
   const router = useRouter();
+  const toast = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    setError("");
     setBusy(true);
     try {
       const response = await fetch("/api/setup", {
@@ -35,7 +34,7 @@ export function SetupForm() {
       if (!response.ok) throw new Error(data.message ?? "Setup failed.");
       router.push("/login");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Setup failed.");
+      toast.error(err instanceof Error ? err.message : "Setup failed.");
     } finally {
       setBusy(false);
     }
@@ -43,20 +42,6 @@ export function SetupForm() {
 
   return (
     <Box component="form" onSubmit={submit} sx={{ display: "grid", gap: 2.25 }}>
-      {error && (
-        <Alert
-          severity="error"
-          sx={{
-            borderRadius: "10px",
-            fontSize: "0.85rem",
-            py: 0.5,
-            "& .MuiAlert-message": { lineHeight: 1.4 },
-          }}
-        >
-          {error}
-        </Alert>
-      )}
-
       <TextField
         label="Full Name"
         type="text"

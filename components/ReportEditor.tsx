@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "./Modal";
 import { RowEditModal } from "./QuickEditModal";
+import { useToast } from "./ToastProvider";
 
 export type EditableReport = {
   status: string;
@@ -39,9 +40,9 @@ type Kind = "revenue" | "expense" | "maintenance" | "fuel" | "brick";
  */
 export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: EditableReport }) {
   const router = useRouter();
+  const toast = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<{ kind: Kind; id: string; label: string } | null>(null);
-  const [error, setError] = useState("");
 
   const arrays: Record<Kind, { id: string }[]> = {
     revenue: initial.revenueLines,
@@ -53,7 +54,6 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
 
   async function removeRow(kind: Kind, id: string) {
     setBusyId(id);
-    setError("");
     try {
       const kept = (arrays[kind] as Record<string, unknown>[]).filter((row) => row.id !== id);
       const response = await fetch(`/api/reports/${dateKey}`, {
@@ -65,7 +65,7 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
       setConfirming(null);
       router.refresh();
     } catch {
-      setError("Delete failed.");
+      toast.error("Delete failed.");
     } finally {
       setBusyId(null);
     }
@@ -75,12 +75,6 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
 
   return (
     <div>
-      {error && (
-        <p role="alert" className="auth-error" style={{ marginBottom: 12 }}>
-          {error}
-        </p>
-      )}
-
       {initial.revenueLines.length > 0 && (
         <section style={{ marginBottom: 18 }}>
           <h2>Revenue</h2>

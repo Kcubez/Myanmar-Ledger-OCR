@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Alert,
   Box,
   Button,
   CircularProgress,
@@ -12,24 +11,24 @@ import {
   TextField,
 } from "@mui/material";
 import { authClient } from "../lib/auth-client";
+import { useToast } from "./ToastProvider";
 
 export function LoginForm({ requiredRole }: { requiredRole?: "admin" | "user" }) {
   const router = useRouter();
+  const toast = useToast();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    setError("");
     setBusy(true);
     try {
       const { error: signInError } = await authClient.signIn.email({ email, password });
       if (signInError) {
-        setError(signInError.message ?? "Sign in failed.");
+        toast.error(signInError.message ?? "Sign in failed.");
         return;
       }
       // Role gate runs BEFORE navigation: this portal is strictly for the role.
@@ -38,13 +37,14 @@ export function LoginForm({ requiredRole }: { requiredRole?: "admin" | "user" })
         const role = (session?.data?.user as { role?: string } | undefined)?.role;
         if (role !== requiredRole) {
           await authClient.signOut();
-          setError(`Access denied. This portal is strictly for ${requiredRole}s.`);
+          toast.error(`Access denied. This portal is strictly for ${requiredRole}s.`);
           return;
         }
       }
+      toast.success("Signed in.");
       router.push(searchParams.get("callbackUrl") ?? (requiredRole === "admin" ? "/admin/users" : "/dashboard"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed.");
+      toast.error(err instanceof Error ? err.message : "Sign in failed.");
     } finally {
       setBusy(false);
     }
@@ -52,20 +52,6 @@ export function LoginForm({ requiredRole }: { requiredRole?: "admin" | "user" })
 
   return (
     <Box component="form" onSubmit={submit} sx={{ display: "grid", gap: 2.25 }}>
-      {error && (
-        <Alert
-          severity="error"
-          sx={{
-            borderRadius: "10px",
-            fontSize: "0.85rem",
-            py: 0.5,
-            "& .MuiAlert-message": { lineHeight: 1.4 },
-          }}
-        >
-          {error}
-        </Alert>
-      )}
-
       <TextField
         label="Email Address"
         type="email"

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Pill } from "./layout";
+import { useToast } from "./ToastProvider";
 
 type ListedUser = {
   id: string;
@@ -15,9 +16,8 @@ type ListedUser = {
 };
 
 export function UsersManager({ currentUserId }: { currentUserId: string }) {
+  const toast = useToast();
   const [users, setUsers] = useState<ListedUser[]>([]);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,19 +41,17 @@ export function UsersManager({ currentUserId }: { currentUserId: string }) {
         const users = await fetchUsers();
         if (!cancelled) setUsers(users);
       } catch {
-        if (!cancelled) setError("Failed to load users.");
+        if (!cancelled) toast.error("Failed to load users.");
       }
     }
     void init();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [toast]);
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
-    setError("");
-    setNotice("");
     setBusy(true);
     try {
       const response = await fetch("/api/admin/users", {
@@ -66,18 +64,16 @@ export function UsersManager({ currentUserId }: { currentUserId: string }) {
       setName("");
       setEmail("");
       setPassword("");
-      setNotice("Staff account created. Give them this login + link their Telegram via /link.");
+      toast.success("Staff account created. Give them this login + link their Telegram via /link.");
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Create failed.");
+      toast.error(err instanceof Error ? err.message : "Create failed.");
     } finally {
       setBusy(false);
     }
   }
 
   async function patch(id: string, body: Record<string, unknown>) {
-    setError("");
-    setNotice("");
     const response = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -85,25 +81,14 @@ export function UsersManager({ currentUserId }: { currentUserId: string }) {
     });
     const data = (await response.json()) as { message?: string };
     if (!response.ok) {
-      setError(data.message ?? "Update failed.");
+      toast.error(data.message ?? "Update failed.");
       return;
     }
-    await refresh().catch(() => setError("Failed to reload users."));
+    await refresh().catch(() => toast.error("Failed to reload users."));
   }
 
   return (
     <div>
-      {error && (
-        <p role="alert" className="auth-error" style={{ marginBottom: 12 }}>
-          {error}
-        </p>
-      )}
-      {notice && (
-        <p role="status" className="status" style={{ width: "auto", marginBottom: 12 }}>
-          {notice}
-        </p>
-      )}
-
       <section className="card pad" style={{ marginBottom: 16 }}>
         <h2>Create staff account</h2>
         <form onSubmit={create} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { LEDGER_TYPES } from "../lib/extract";
 import { Modal } from "./Modal";
 import { Pill } from "./layout";
+import { useToast } from "./ToastProvider";
 
 type BotSettings = {
   botToken: string;
@@ -34,6 +35,7 @@ const LEDGER_LABELS: Record<string, string> = {
 };
 
 export function SettingsManager() {
+  const toast = useToast();
   const [tab, setTab] = useState<"bot" | "senders">("bot");
   const [settings, setSettings] = useState<BotSettings | null>(null);
   const [tokenDraft, setTokenDraft] = useState<string | null>(null);
@@ -42,8 +44,6 @@ export function SettingsManager() {
   const [senders, setSenders] = useState<Sender[]>([]);
   const [preEmail, setPreEmail] = useState("");
   const [preScopes, setPreScopes] = useState<string[]>([]);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<Sender | null>(null);
 
@@ -83,27 +83,25 @@ export function SettingsManager() {
           setSenders(data.senders);
         }
       } catch {
-        if (!cancelled) setError("Failed to load settings.");
+        if (!cancelled) toast.error("Failed to load settings.");
       }
     }
     void init();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [toast]);
 
   const dirty = tokenDraft !== null || keyDraft !== null ||
     (settings !== null && model.trim() !== settings.geminiModel);
 
   async function saveBot() {
     setBusy(true);
-    setError("");
-    setMessage("");
     // Masked values (•) can never be extended — the server would discard the
     // whole field as "unchanged". Force a full re-paste instead of a silent skip.
     if ((tokenDraft ?? "").includes("•") || (keyDraft ?? "").includes("•")) {
       setBusy(false);
-      setError("Secret fields show masked values — clear the field and paste the FULL value (all keys, comma-separated).");
+      toast.error("Secret fields show masked values — clear the field and paste the FULL value (all keys, comma-separated).");
       return;
     }
     try {
@@ -131,13 +129,13 @@ export function SettingsManager() {
         setTokenDraft(null);
         setKeyDraft(null);
       }
-      setMessage(
+      toast.success(
         data.webhookRegistered
           ? `Saved — webhook registered (${data.webhookUrl}).`
           : data.warning ?? "Saved.",
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed.");
+      toast.error(err instanceof Error ? err.message : "Save failed.");
     } finally {
       setBusy(false);
     }
@@ -146,8 +144,6 @@ export function SettingsManager() {
   async function preRegister(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
-    setError("");
-    setMessage("");
     try {
       const response = await fetch("/api/settings/senders", {
         method: "POST",
@@ -158,10 +154,10 @@ export function SettingsManager() {
       if (!response.ok) throw new Error(data.message ?? "Pre-register failed.");
       setPreEmail("");
       setPreScopes([]);
-      setMessage("Staff pre-registered. They link via /link + OTP in Telegram.");
+      toast.success("Staff pre-registered. They link via /link + OTP in Telegram.");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Pre-register failed.");
+      toast.error(err instanceof Error ? err.message : "Pre-register failed.");
     } finally {
       setBusy(false);
     }
@@ -174,7 +170,7 @@ export function SettingsManager() {
       body: JSON.stringify({ id, ...patch }),
     });
     if (!response.ok) {
-      setError("Sender update failed.");
+      toast.error("Sender update failed.");
       return;
     }
     await load();
@@ -182,7 +178,6 @@ export function SettingsManager() {
 
   async function deleteSender(id: string) {
     setBusy(true);
-    setError("");
     try {
       const response = await fetch("/api/senders", {
         method: "DELETE",
@@ -193,7 +188,7 @@ export function SettingsManager() {
       setDeleting(null);
       await load();
     } catch {
-      setError("Sender delete failed.");
+      toast.error("Sender delete failed.");
     } finally {
       setBusy(false);
     }
@@ -203,17 +198,6 @@ export function SettingsManager() {
 
   return (
     <div>
-      {error && (
-        <p role="alert" className="auth-error" style={{ marginBottom: 12 }}>
-          {error}
-        </p>
-      )}
-      {message && (
-        <p role="status" className="status" style={{ width: "auto", marginBottom: 12 }}>
-          {message}
-        </p>
-      )}
-
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         {(["bot", "senders"] as const).map((t) => (
           <button

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "./Modal";
 import { AmountInput } from "./AmountInput";
+import { useToast } from "./ToastProvider";
 
 type RevenueRow = { method: string; amount: number };
 type ExpenseRow = { category: string; name: string | null; amount: number };
@@ -58,17 +59,16 @@ const HEADER_CATS = ["BUSINESS_DRAWING", "PERSONAL_DRAWING", "OPERATION"];
  */
 export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "revenue" | "expense" }) {
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const [rev, setRev] = useState<RevenueRow[] | null>(null);
   const [exp, setExp] = useState<ExpenseRow[] | null>(null);
 
   async function load() {
     setOpen(true);
     setLoading(true);
-    setError("");
     try {
       const response = await fetch(`/api/reports/${dateKey}`);
       if (!response.ok) throw new Error("Load failed.");
@@ -78,7 +78,7 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
       setRev(data.report.revenueLines);
       setExp(data.report.expenseLines);
     } catch {
-      setError("Load failed.");
+      toast.error("Load failed.");
     } finally {
       setLoading(false);
     }
@@ -86,7 +86,6 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
 
   async function save() {
     setSaving(true);
-    setError("");
     try {
       const body = kind === "revenue" ? { revenue: rev } : { expense: exp };
       const response = await fetch(`/api/reports/${dateKey}`, {
@@ -98,7 +97,7 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
       setOpen(false);
       router.refresh();
     } catch {
-      setError("Save failed.");
+      toast.error("Save failed.");
     } finally {
       setSaving(false);
     }
@@ -117,11 +116,6 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
             <p className="muted">Loading…</p>
           ) : (
             <div style={{ display: "grid", gap: 8 }}>
-              {error && (
-                <span role="alert" style={{ color: "#b3261e", fontSize: ".85rem" }}>
-                  {error}
-                </span>
-              )}
               {kind === "revenue"
                 ? (rev ?? []).map((row, i) => (
                     <Field key={row.method} label={METHOD_LABELS[row.method] ?? row.method}>
@@ -185,10 +179,10 @@ export function RowEditModal({
   rowId: string;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const [fuel, setFuel] = useState<FuelRow[] | null>(null);
   const [brick, setBrick] = useState<BrickRow[] | null>(null);
   const [maint, setMaint] = useState<MaintRow[] | null>(null);
@@ -198,7 +192,6 @@ export function RowEditModal({
   async function load() {
     setOpen(true);
     setLoading(true);
-    setError("");
     try {
       const response = await fetch(`/api/reports/${dateKey}`);
       if (!response.ok) throw new Error("Load failed.");
@@ -217,7 +210,7 @@ export function RowEditModal({
       setRev(data.report.revenueLines);
       setExp(data.report.expenseLines);
     } catch {
-      setError("Load failed.");
+      toast.error("Load failed.");
     } finally {
       setLoading(false);
     }
@@ -225,7 +218,6 @@ export function RowEditModal({
 
   async function save() {
     setSaving(true);
-    setError("");
     try {
       const body =
         kind === "fuel"
@@ -246,7 +238,7 @@ export function RowEditModal({
       setOpen(false);
       router.refresh();
     } catch {
-      setError("Save failed.");
+      toast.error("Save failed.");
     } finally {
       setSaving(false);
     }
@@ -293,11 +285,6 @@ export function RowEditModal({
             <p className="muted">Row no longer exists.</p>
           ) : (
             <div style={{ display: "grid", gap: 8 }}>
-              {error && (
-                <span role="alert" style={{ color: "#b3261e", fontSize: ".85rem" }}>
-                  {error}
-                </span>
-              )}
               {kind === "fuel" && (
                 <>
                   <Field label="Particular">

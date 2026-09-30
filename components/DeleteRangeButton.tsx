@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Modal } from "./Modal";
+import { useToast } from "./ToastProvider";
 
 /**
  * Range-scoped bulk delete for ledger pages. The server page passes the
@@ -25,15 +26,14 @@ export function DeleteRangeButton({
   lte: string | null;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
 
   const what = count === 1 ? `1 ${kindLabel} entry` : `${count} ${kindLabel} entries`;
 
   async function onConfirm() {
     setBusy(true);
-    setError("");
     try {
       const response = await fetch("/api/ledger-entries", {
         method: "DELETE",
@@ -44,7 +44,7 @@ export function DeleteRangeButton({
       setConfirming(false);
       router.refresh();
     } catch {
-      setError("Delete failed.");
+      toast.error("Delete failed.");
     } finally {
       setBusy(false);
     }
@@ -62,11 +62,6 @@ export function DeleteRangeButton({
       >
         Delete
       </button>
-      {error && (
-        <span role="alert" style={{ color: "#b3261e", fontSize: ".8rem" }}>
-          {error}
-        </span>
-      )}
       <Modal
         open={confirming}
         title={`Delete ${what} in ${scopeLabel}?`}
