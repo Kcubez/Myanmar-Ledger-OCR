@@ -5,12 +5,12 @@ import { BarChart as MuiBarChart, LineChart, PieChart } from "@mui/x-charts";
 
 // Keep exact, full-comma amounts everywhere, including axes and tooltips.
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
-const LEAF = "#21633e";
+const LEAF = "#8b63cf";
 const RED = "#a63434";
-const COLORS = [LEAF, "#548b78", "#88b3a0", "#bc914a", "#657a91"];
+const COLORS = [LEAF, "#b196dd", "#cec0e7", "#bc914a", "#778ab5"];
 const chartStyle = {
-  "& .MuiChartsGrid-line": { stroke: "#e8ede9", strokeDasharray: "3 5" },
-  "& .MuiChartsAxis-tickLabel": { fill: "#68766d", fontSize: 11 },
+  "& .MuiChartsGrid-line": { stroke: "#eeebf3", strokeDasharray: "3 5" },
+  "& .MuiChartsAxis-tickLabel": { fill: "#777383", fontSize: 11 },
   "& .MuiLineElement-root": { strokeWidth: 2.5 },
 };
 

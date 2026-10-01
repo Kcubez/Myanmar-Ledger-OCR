@@ -3,14 +3,14 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
-function fixture({ fail = false, legacy = 0, newer = 0 } = {}) {
+function fixture({ fail = false, legacy = 0, newer = 0, mode = "expense", sheetKind = "fuel" } = {}) {
   let state = { total: 100, status: 'CONFIRMED', upload: 'PENDING', writes: 0 };
   const prisma = { async $transaction(run) {
     const draft = { ...state };
     const result = await run({
       pendingUpload: {
-        async findUnique() { return { id:'u', reportId:'r', status:draft.upload, mode:'expense', createdAt:new Date(), payload:{}, report:{date:new Date()} }; },
-        async count() { return newer; },
+        async findUnique() { return { id:'u', reportId:'r', status:draft.upload, mode, createdAt:new Date(), payload:{sheetKind}, report:{date:new Date()} }; },
+        async count({where}) { if(mode === "inventory") assert.equal(where.payload.equals, sheetKind); return newer; },
         async update({data}) { draft.upload = data.status; },
       },
       dailyReport: { async count() { return legacy; }, async update({data}) { draft.status = data.status; } },
@@ -35,3 +35,9 @@ test('approval rollback preserves old totals',async()=>{const f=fixture({fail:tr
 test('repeat approval cannot apply twice',async()=>{const f=fixture();await f.act(true);await assert.rejects(f.act(true),/already reviewed/);assert.equal(f.state().writes,1);});
 test('older replacement cannot overwrite a newer approved version',async()=>{const f=fixture({newer:1});await assert.rejects(f.act(true),/newer upload/);assert.equal(f.state().total,100);});
 test('legacy pending data must be reviewed explicitly first',async()=>{const f=fixture({legacy:1});await assert.rejects(f.act(true),/existing pending report/);assert.equal(f.state().total,100);});
+
+test('inventory approval checks newer sheets of the same kind and preserves rejection state',async()=>{
+ const old=fixture({mode:'inventory',newer:1});await assert.rejects(old.act(true),/newer inventory/);assert.equal(old.state().total,100);
+ const pending=fixture({mode:'inventory'});await pending.act(false);assert.equal(pending.state().writes,0);
+ const accepted=fixture({mode:'inventory'});await accepted.act(true);assert.equal(accepted.state().writes,1);
+});

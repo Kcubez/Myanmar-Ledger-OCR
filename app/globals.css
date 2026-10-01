@@ -111,3 +111,30 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-vi
   .responsive-ledger td > span { flex-wrap:wrap; justify-content:flex-end; }
   .responsive-ledger td button { min-height:44px; }
 }
+
+/* Workspace visual system: lavender accents, neutral surfaces and dark navigation. */
+:root { --ink:#252332; --muted:#777383; --line:#e9e6ef; --paper:#fff; --leaf:#7955c7; --soft:#f2eef9; }
+body { background:#f7f6fb; font-family:var(--font-inter),"Noto Sans Myanmar",Arial,sans-serif; }
+button,input,textarea,select { font:inherit; }
+button { border-radius:10px; font-weight:600; }
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,a:focus-visible,summary:focus-visible { outline:3px solid #ac8bdf; outline-offset:3px; }
+.card { border-radius:20px; border-color:var(--line); box-shadow:0 5px 22px rgba(38,25,66,.025); }
+.card.pad { padding:24px; }
+h2 { font-weight:650; letter-spacing:-.025em; }
+.section-eyebrow { color:var(--leaf); letter-spacing:.1em; font-size:.65rem; }
+.table-wrap { margin-top:18px; border:0; border-radius:12px; }
+th { background:#f6f4fa; color:#777383; font-weight:600; font-size:.74rem; padding:15px 16px; }
+td { padding:16px; font-size:.85rem; border-color:#f0edf5; font-variant-numeric:tabular-nums; }
+tbody tr:hover { background:#fcfaff; }
+select { color:var(--ink); background:#fff; border:1px solid var(--line); padding:9px 12px; border-radius:10px; }
+.stats { gap:16px; margin-bottom:26px; }
+.dashboard-charts { gap:24px; }
+.payment-row { border-color:var(--line); }
+.inventory-units { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 24px; }
+.inventory-units span { padding:7px 12px; background:#f0eafa; color:#64449b; border-radius:8px; font-size:.75rem; }
+@media(max-width:760px) {
+ .card.pad { padding:18px 14px; }
+ .responsive-ledger tbody tr { background:#fff; border-color:var(--line); }
+ .ledger-list .responsive-ledger tbody td { font-size:.83rem; }
+}
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; } }

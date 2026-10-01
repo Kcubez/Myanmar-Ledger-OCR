@@ -66,3 +66,24 @@ No web upload, no multi-client/SaaS billing, no xlsx bulk import, no QA chatbot,
 - PendingUpload stores extracted JSON only. Existing approved lines and report status remain unchanged on upload. Approve atomically applies that upload: revenue/expense/maintenance replace the same type; fuel/brick append deduplicated rows. Reject affects only the pending upload.
 - Existing legacy pending reports must be reviewed before approving new uploads for the same date. No automatic restoration or approval of legacy data.
 - This section supersedes earlier thumbnail-storage and upload-time replacement policies.
+
+## Inventory daily summaries — 2026-09-30 (supersedes Fuel/Brick input)
+Active ledgers: Inventory, Revenue, Expense, Maintenance. Inventory categories:
+Sand (sud), Gravel (sud), Cement (bags), Brick (nos), Fuel (gal).
+Keep Cement brands and Brick variants as separate particulars. New reference
+photos are data-files/inventory.jpg and inventory_fuel.jpg; old running-book
+Fuel/Brick photos are retired for new input. Keep historical tables and pages
+as legacy records; never reinterpret or delete their data automatically.
+Telegram offers one Inventory mode and detects material-summary vs fuel sheet.
+Material summaries have one row per product/variant. Fuel retains physical row
+order, with each vehicle/supplier movement and running shared-tank balance.
+Fuel closing balance is the LAST row's balance, never the sum of balances.
+For the sample: out 53 gal, in 108 gal, closing 149 gal. Blank/unclear values
+stay null and flagged; explicit dash means no movement. Preserve source text.
+Uploads remain pending until approval. Approval replaces ONLY the same day's
+sheet kind (materials or fuel) atomically, preserving the other sheet and other
+ledgers. Retakes do not add duplicate movements. Older approved replacements
+cannot overwrite newer approved versions of the same sheet kind.
+Inventory page has date and category filters, source-order detail and units.
+Old sender scopes with BOTH fuel and brick migrate to inventory; single legacy
+scope requires owner to explicitly grant inventory to avoid broader access.

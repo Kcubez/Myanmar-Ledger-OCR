@@ -1,3 +1,4 @@
+import { inventoryQuantity, parseInventoryResponse } from "./extract/inventory";
 import type { Prisma } from "../generated/prisma/client";
 import { amountFrom, type LedgerType } from "./extract";
 import { operationIsWageSubtotal } from "./extract/expense";
@@ -11,6 +12,7 @@ export type ExtractedPayload = {
   lines: unknown;
   confidence: number;
   flags: string[];
+  sheetKind?: "materials" | "fuel";
 };
 
 type Tx = Prisma.TransactionClient;
@@ -29,6 +31,18 @@ function brickSig(row: { date: Date; item: string; qty: unknown; unitPrice: unkn
 export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, extracted: ExtractedPayload, reportDate: Date): Promise<{ added: number; skipped: number }> {
   const big = (value: string): bigint => BigInt(Math.round(amountFrom(value)));
   switch (mode) {
+    case "inventory": {
+      const parsed = parseInventoryResponse(JSON.stringify({ date: extracted.contentDateText, sheetKind: extracted.sheetKind, rows: extracted.lines }));
+      if (!parsed.data.rows.length) throw new Error("Inventory sheet has no valid rows.");
+      const sheetKind = parsed.data.sheetKind;
+      await tx.inventoryEntry.deleteMany({ where: { reportId, sheetKind } });
+      await tx.inventoryEntry.createMany({ data: parsed.data.rows.map((row, position) => ({
+        reportId, sheetKind, position, category: row.category, particular: row.particular,
+        unit: row.unit, quantityIn: inventoryQuantity(row.in), quantityOut: inventoryQuantity(row.out),
+        balance: inventoryQuantity(row.balance), balanceOk: row.balance_ok,
+      })) });
+      return { added: parsed.data.rows.length, skipped: 0 };
+    }
     case "revenue": {
       const lines = extracted.lines as { method: string; amount: string }[];
       await tx.revenueLine.deleteMany({ where: { reportId } });

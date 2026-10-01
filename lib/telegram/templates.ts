@@ -6,6 +6,7 @@
 import { LEDGER_TYPES, type LedgerType } from "../extract";
 
 export const LEDGER_LABELS: Record<LedgerType, { emoji: string; en: string; mm: string }> = {
+  inventory: { emoji: "📦", en: "Inventory", mm: "ပစ္စည်းစာရင်း" },
   revenue: { emoji: "💰", en: "Revenue", mm: "ဝင်ငွေ" },
   expense: { emoji: "💸", en: "Expense (OPEX)", mm: "ထွက်ငွေ" },
   maintenance: { emoji: "🔧", en: "Maintenance", mm: "ပြုပြင်ထိန်းသိမ်းမှု" },
@@ -41,6 +42,7 @@ export function buildMainMenuButtons() {
 export function getFormatPromptForMode(mode: LedgerType | null | undefined): string {
   if (!mode) return "<b>Ledger Bot</b>\nChoose a ledger from /menu, then send a clear photo.\n/menu မှ စာရင်းအမျိုးအစားရွေးပြီး ကြည်လင်သောပုံ ပို့ပါ။";
   const instructions: Record<LedgerType, string> = {
+    inventory: "Send a daily materials or fuel summary with Date, Particular, In, Out and Balance. Include every row and brand.\nနေ့စဉ် ပစ္စည်း သို့မဟုတ် ဆီစာရင်းကို ရက်စွဲ၊ အမည်၊ အဝင်၊ အထွက်၊ လက်ကျန်နှင့် အမျိုးကွဲအားလုံး ပါအောင်ပို့ပါ။",
     revenue: "Include the total and all payment methods.\nစုစုပေါင်းနှင့် ငွေပေးချေမှုခွဲချက်အားလုံး ပါအောင်ပို့ပါ။",
     expense: "Include BOTH the expense summary and labour details in one photo. Labour details are part of the subtotal, not an extra charge.\nအပေါ်ကအနှစ်ချုပ်နှင့် အောက်ကလုပ်အားခအသေးစိတ် နှစ်ပိုင်းလုံးပါအောင် ပို့ပါ။ လုပ်အားခကို နှစ်ခါမပေါင်းပါ။",
     maintenance: "Include date, vehicle/ship, amount and repair item.\nရက်စွဲ၊ ယာဉ်/သင်္ဘော၊ ငွေပမာဏနှင့် ပြုပြင်သည့်ပစ္စည်း ပါအောင်ပို့ပါ။",
@@ -62,7 +64,9 @@ export function buildExtractSummaryMessage(opts: {
   added: number;
   skipped: number;
 }): string {
-  const note = opts.mode === "fuel" || opts.mode === "brick"
+  const note = opts.mode === "inventory"
+    ? "After approval, this upload replaces the same date’s materials or fuel sheet. The other sheet stays unchanged.\nအတည်ပြုပြီးမှ ရက်စွဲတူ ပစ္စည်း သို့မဟုတ် ဆီစာရွက်ကို အစားထိုးပါမည်။"
+    : opts.mode === "fuel" || opts.mode === "brick"
     ? "Rows will be merged after approval; duplicates will be skipped.\nအတည်ပြုပြီးမှ စာကြောင်းအသစ်များ ပေါင်းထည့်ပါမည်။"
     : "After approval, this upload replaces the same ledger for this report date. Approved data remains visible until then.\nအတည်ပြုပြီးမှ ရက်စွဲတူ၊ အမျိုးအစားတူစာရင်းကို အစားထိုးပါမည်။";
   return `${opts.summary}\n\n<b>Report date / စာရင်းရက်စွဲ:</b> ${escapeHtml(opts.dateKey)}\n${note}\n\n<b>Pending review / စစ်ဆေးရန်စောင့်နေသည်</b>\nCheck the details, then tap Submit for review. Final approval happens in the dashboard.\nအချက်အလက်စစ်ပြီး စစ်ဆေးရန်ပို့မည် ကိုနှိပ်ပါ။ နောက်ဆုံးအတည်ပြုခြင်းကို dashboard မှ လုပ်ပါမည်။`;

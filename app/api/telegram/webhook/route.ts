@@ -41,6 +41,9 @@ import {
   dominantReason,
   amountFrom,
   isLedgerType,
+  LEDGER_TYPES,
+  inventoryPrompt,
+  parseInventoryResponse,
   type LedgerType,
   type ExtractReason,
 } from "../../../../lib/extract";
@@ -106,7 +109,7 @@ async function modeAccess(
   chatId: number,
 ): Promise<LedgerType | null> {
   const mode = sender.activeReportType;
-  if (isLedgerType(mode) && sender.allowedLedgers.includes(mode)) return mode;
+  if ((LEDGER_TYPES as readonly string[]).includes(mode) && isLedgerType(mode) && sender.allowedLedgers.includes(mode)) return mode;
   await sendTelegramMessage({
     botToken,
     chatId,
@@ -415,7 +418,7 @@ async function handleCallback(
 
   if (data.startsWith("mode:")) {
     const mode = data.replace("mode:", "");
-    if (!isLedgerType(mode)) {
+    if (!isLedgerType(mode) || !(LEDGER_TYPES as readonly string[]).includes(mode)) {
       await answerCallbackQuery(botToken, queryId, "Unknown ledger");
       return;
     }
@@ -535,7 +538,7 @@ async function processPhoto(
     await tx.sourceImage.create({
       data: {
         reportId: rep.id,
-        ledgerType: mode.toUpperCase() as "REVENUE" | "EXPENSE" | "MAINTENANCE" | "FUEL" | "BRICK",
+        ledgerType: mode.toUpperCase() as "REVENUE" | "EXPENSE" | "MAINTENANCE" | "FUEL" | "BRICK" | "INVENTORY",
         storagePath: null, // metadata only; no stored image
         thumbnailPath: null,
         telegramFileId: fileId,
@@ -545,7 +548,7 @@ async function processPhoto(
     });
     await tx.telegramMessage.updateMany({
       where: { chatId, messageId },
-      data: { reportId: rep.id, ledgerType: mode.toUpperCase() as "REVENUE" | "EXPENSE" | "MAINTENANCE" | "FUEL" | "BRICK", status: "extracted" },
+      data: { reportId: rep.id, ledgerType: mode.toUpperCase() as "REVENUE" | "EXPENSE" | "MAINTENANCE" | "FUEL" | "BRICK" | "INVENTORY", status: "extracted" },
     });
     return { report: rep, ...counts };
   });
@@ -575,6 +578,15 @@ async function extractByType(
   const parts = (prompt: string) => [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64 } }];
   try {
     switch (mode) {
+      case "inventory": {
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(inventoryPrompt()), parse: parseInventoryResponse });
+        return {
+          contentDateText: result.data.date, rawText: "", persistKind: mode,
+          sheetKind: result.data.sheetKind, lines: result.data.rows,
+          confidence: result.confidence, flags: result.unreadable_fields,
+          summary: `📦 Inventory · ${result.data.sheetKind === "fuel" ? "Fuel" : "Materials"} — ${result.data.rows.length} rows`,
+        };
+      }
       case "revenue": {
         const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(revenuePrompt()), parse: parseRevenueResponse });
         const total = result.data.total || "—";

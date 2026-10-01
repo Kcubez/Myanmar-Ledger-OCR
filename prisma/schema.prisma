@@ -139,6 +139,7 @@ enum LedgerType {
   MAINTENANCE
   FUEL
   BRICK
+  INVENTORY
 }
 
 enum RevenueMethod {
@@ -172,6 +173,7 @@ model DailyReport {
   maintenanceLines MaintenanceLine[]
   fuelEntries      FuelEntry[]
   brickEntries     BrickEntry[]
+  inventoryEntries InventoryEntry[]
   pendingUploads   PendingUpload[]
   images           SourceImage[]
   telegramMessages TelegramMessage[]
@@ -303,4 +305,23 @@ model PendingUpload {
   createdAt DateTime @default(now()) @map("created_at")
   @@index([reportId, status])
   @@map("pending_upload")
+}
+
+// Daily sheets: material variants or ordered shared-tank fuel movements.
+model InventoryEntry {
+  id String @id @default(cuid())
+  reportId String @map("report_id")
+  report DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  sheetKind String @map("sheet_kind")
+  position Int
+  category String
+  particular String
+  unit String
+  quantityIn Decimal? @db.Decimal(14, 3) @map("quantity_in")
+  quantityOut Decimal? @db.Decimal(14, 3) @map("quantity_out")
+  balance Decimal? @db.Decimal(14, 3)
+  balanceOk Boolean? @map("balance_ok")
+  @@unique([reportId, sheetKind, position])
+  @@index([category, reportId])
+  @@map("inventory_entry")
 }

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     take: limit,
     include: {
       _count: {
-        select: { revenueLines: true, expenseLines: true, maintenanceLines: true, fuelEntries: true, brickEntries: true, images: true },
+        select: { revenueLines: true, expenseLines: true, maintenanceLines: true, fuelEntries: true, brickEntries: true, inventoryEntries: true, images: true },
       },
     },
   });

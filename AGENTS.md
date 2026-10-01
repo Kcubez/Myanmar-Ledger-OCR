@@ -1,7 +1,7 @@
 # AGENTS.md — contributor working agreement
 
 ## Scope
-Single-client ledger system: Telegram-only input, dashboard-only web. Ledger types are a CLOSED set: `revenue | expense | fuel | brick | maintenance`. Do not add types, roles, or public signup without a PRD update.
+Single-client ledger system: Telegram-only input, dashboard-only web. Ledger types are a CLOSED set: `revenue | expense | inventory | maintenance` (Fuel/Brick remain legacy data only; see 2026-09-30 PRD update). Do not add types, roles, or public signup without a PRD update.
 
 ## Canonical sources (BAI reuse rule)
 - Telegram primitives: copy BAI `lib/telegram/client.ts` semantics (send/edit/download/largest-photo). Do not reinvent the Bot API client.

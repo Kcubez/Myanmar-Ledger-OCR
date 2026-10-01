@@ -31,7 +31,7 @@ export default async function DashboardPage({
       orderBy: { date: "asc" },
       include: {
         _count: {
-          select: { revenueLines: true, expenseLines: true, maintenanceLines: true, fuelEntries: true, brickEntries: true },
+          select: { revenueLines: true, expenseLines: true, maintenanceLines: true, fuelEntries: true, brickEntries: true, inventoryEntries: true },
         },
       },
     }),
@@ -58,7 +58,7 @@ export default async function DashboardPage({
   const reports = reportRows.filter((report) => {
     const counts = report._count;
     return (
-      counts.revenueLines + counts.expenseLines + counts.maintenanceLines + counts.fuelEntries + counts.brickEntries > 0
+      counts.revenueLines + counts.expenseLines + counts.maintenanceLines + counts.fuelEntries + counts.brickEntries + counts.inventoryEntries > 0
     );
   });
   const totalRevenue = reports.reduce((s, r) => s + Number(r.totalRevenue), 0);
@@ -166,6 +166,7 @@ export default async function DashboardPage({
               <tr>
                 <th>Date</th>
                 <th>Status</th>
+                <th>Inventory</th>
                 <th className="num">Revenue</th>
                 <th className="num">Expense</th>
               </tr>
@@ -181,6 +182,7 @@ export default async function DashboardPage({
                     <td data-label="Status">
                       <StatusPill status={r.status} />
                     </td>
+                    <td data-label="Inventory">{r._count.inventoryEntries ? <Link href={`/inventory?period=day&year=${r.date.getUTCFullYear()}&month=${r.date.getUTCMonth() + 1}&day=${r.date.getUTCDate()}`}>{r._count.inventoryEntries} rows</Link> : "—"}</td>
                     <td data-label="Revenue" className="num">{Number(r.totalRevenue).toLocaleString()}</td>
                     <td data-label="Expense" className="num">{Number(r.totalExpense).toLocaleString()}</td>
                   </tr>

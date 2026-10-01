@@ -30,7 +30,8 @@ const LEDGER_LABELS: Record<string, string> = {
   revenue: "Revenue",
   expense: "Expense",
   maintenance: "Maintenance",
-  fuel: "Fuel",
+  inventory: "Inventory",
+  fuel: "Fuel (legacy)",
   brick: "Brick",
 };
 

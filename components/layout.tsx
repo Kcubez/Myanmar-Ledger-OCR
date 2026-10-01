@@ -26,8 +26,7 @@ const DRAWER_WIDTH = 250;
 
 const LINKS = [
   { href: "/dashboard", label: "Overview", ico: "📊" },
-  { href: "/fuel", label: "Fuel", ico: "⛽" },
-  { href: "/brick", label: "Brick", ico: "🧱" },
+  { href: "/inventory", label: "Inventory", ico: "📦" },
   { href: "/maintenance", label: "Maintenance", ico: "🔧" },
   { href: "/revenue", label: "Revenue", ico: "💰" },
   { href: "/expense", label: "Expense", ico: "💸" },
@@ -37,29 +36,24 @@ const LINKS = [
 
 const ADMIN_LINKS = [{ href: "/admin/users", label: "Users", ico: "👥" }];
 
-const TONE_BAR: Record<string, string> = {
-  good: "var(--ok)",
-  bad: "var(--bad)",
-  warn: "var(--warn)",
-};
-
-const TONE_BG: Record<string, string> = {
-  good: "var(--ok-bg)",
-  bad: "var(--bad-bg)",
-  warn: "var(--warn-bg)",
-};
-
-const TONE_BORDER: Record<string, string> = {
-  good: "#bfe3c9",
-  bad: "#eec9c9",
-  warn: "#ecd9a8",
-};
-
 const TONE_TEXT: Record<string, string> = {
   good: "var(--ok)",
   bad: "var(--bad)",
   warn: "var(--warn)",
 };
+
+function NavIcon({ href }: { href: string }) {
+  const paths: Record<string, string> = {
+    "/dashboard": "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
+    "/inventory": "M3 7l9-4 9 4v13H3z M3 7h18 M9 11h6",
+    "/maintenance": "M14 5a5 5 0 0 0-6 6L3 16l5 5 5-5a5 5 0 0 0 6-6l-4 3-4-4z",
+    "/revenue": "M4 18V6 M4 18h16 M7 14l5-5 4 3 5-7",
+    "/expense": "M4 6v12h16 M7 7l5 5 4-3 5 7",
+    "/approvals": "M8 3h8v4H8z M7 5H4v16h16V5h-3 M8 14l3 3 5-6",
+    "/settings": "M4 7h16 M4 17h16 M8 4v6 M16 14v6",
+  };
+  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[href] ?? paths["/settings"]} /></svg>;
+}
 
 function NavLinks({
   links,
@@ -87,14 +81,15 @@ function NavLinks({
             onClick={onNavigate}
             sx={{
               borderRadius: "10px",
-              fontWeight: 700,
-              "&.Mui-selected": { bgcolor: "var(--leaf)", color: "#fff", "&:hover": { bgcolor: "var(--leaf)" } },
+              fontWeight: 600, color: "#bab5c9", px: 2, py: 1,
+              "&:hover": { bgcolor: "rgba(255,255,255,.06)", color: "#fff" },
+              "&.Mui-selected": { bgcolor: "rgba(172,133,239,.16)", color: "#e0c9ff", boxShadow: "inset 0 0 0 1px rgba(192,158,249,.2)", "&:hover": { bgcolor: "rgba(172,133,239,.22)" } },
             }}
           >
             <ListItemIcon sx={{ minWidth: 34, color: "inherit" }}>
-              <span aria-hidden>{link.ico}</span>
+              <NavIcon href={link.href} />
             </ListItemIcon>
-            <ListItemText primary={link.label} slotProps={{ primary: { sx: { fontWeight: 700 } } }} />
+            <ListItemText primary={link.label} slotProps={{ primary: { sx: { fontWeight: 500, fontSize: ".88rem" } } }} />
             {!!badge && (
               <Badge
                 badgeContent={badge}
@@ -147,22 +142,14 @@ export function StatCard({
         position: "relative",
         overflow: "hidden",
         border: "1px solid",
-        borderColor: tone ? TONE_BORDER[tone] : "var(--line)",
-        borderRadius: "14px",
-        bgcolor: tone ? TONE_BG[tone] : "var(--paper)",
-        pl: { xs: "6px", sm: "20px" },
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: "4px",
-          bgcolor: tone ? TONE_BAR[tone] : "var(--line)",
-        },
+        borderColor: "var(--line)",
+        borderRadius: "20px",
+        bgcolor: "var(--paper)",
+        boxShadow: "0 5px 20px rgba(38,25,66,.035)",
+
       }}
     >
-      <CardContent sx={{ p: "14px 16px", "&:last-child": { pb: "14px" } }}>
+      <CardContent sx={{ p: { xs: "18px 14px", sm: "24px" }, "&:last-child": { pb: "24px" } }}>
         <Typography
           variant="caption"
           sx={{ color: "var(--muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}
@@ -174,16 +161,16 @@ export function StatCard({
           component="b"
           sx={{
             display: "block",
-            mt: 0.5,
+            mt: 2, mb: 1, fontWeight: 650, letterSpacing: "-.04em",
             fontSize: { xs: "clamp(1rem, 4.5vw, 1.45rem)", sm: "1.65rem" },
             fontVariantNumeric: "tabular-nums",
-            color: tone ? TONE_TEXT[tone] : "inherit",
+            color: "var(--ink)",
           }}
         >
           {value}
         </Typography>
         {sub && (
-          <Typography variant="caption" sx={{ color: "var(--muted)" }}>
+          <Typography variant="caption" sx={{ color: tone ? TONE_TEXT[tone] : "var(--muted)" }}>
             {sub}
           </Typography>
         )}
@@ -209,7 +196,7 @@ export function PageHeader({
         {eyebrow && (
           <Typography sx={{ m: 0, color: "var(--leaf)", fontSize: ".74rem", fontWeight: 800 }}>{eyebrow}</Typography>
         )}
-        <Typography variant="h4" component="h1" sx={{ m: "2px 0 4px", fontSize: "1.7rem" }}>
+        <Typography variant="h4" component="h1" sx={{ m: "2px 0 4px", fontSize: { xs: "1.55rem", sm: "1.9rem" }, fontWeight: 650, letterSpacing: "-.035em" }}>
           {title}
         </Typography>
         {sub && (
@@ -262,7 +249,7 @@ export function AppShell({ children, role }: { children: React.ReactNode; role: 
   const links = isAdmin ? ADMIN_LINKS : LINKS;
 
   const drawerBody = (
-    <Box component="nav" id="ledger-navigation" aria-label="Main navigation" sx={{ p: "18px 14px", display: "flex", flexDirection: "column", gap: 0.5, height: "100%" }}>
+    <Box component="nav" id="ledger-navigation" aria-label="Main navigation" sx={{ p: "18px 14px", display: "flex", flexDirection: "column", gap: 1, height: "100%", color: "#f7f4ff", background: "radial-gradient(ellipse at bottom left, #33213e 0%, transparent 52%), #191720" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 1, pb: 2 }}>
         <Box
           sx={{
@@ -280,14 +267,14 @@ export function AppShell({ children, role }: { children: React.ReactNode; role: 
           L
         </Box>
         <Typography sx={{ fontWeight: 700 }}>Ledger</Typography>
-        {narrow && <IconButton aria-label="Close menu" onClick={() => setOpen(false)} sx={{ ml: "auto", width: 44, height: 44 }}>×</IconButton>}
+        {narrow && <IconButton aria-label="Close menu" onClick={() => setOpen(false)} sx={{ ml: "auto", width: 44, height: 44, color: "#fff" }}>×</IconButton>}
       </Box>
       <NavLinks links={links} pathname={pathname} pending={pending} onNavigate={() => setOpen(false)} />
-      <Box sx={{ mt: "auto", pt: 2, borderTop: "1px solid var(--line)" }}>
+      <Box sx={{ mt: "auto", pt: 2, borderTop: "1px solid rgba(255,255,255,.1)" }}>
         <Button
           fullWidth
           onClick={signOut}
-          sx={{ bgcolor: "var(--soft)", color: "var(--leaf)", "&:hover": { bgcolor: "#e4ede6" } }}
+          sx={{ bgcolor: "rgba(255,255,255,.06)", color: "#dfd7ed", "&:hover": { bgcolor: "rgba(255,255,255,.1)" } }}
         >
           Sign out
         </Button>
@@ -315,20 +302,20 @@ export function AppShell({ children, role }: { children: React.ReactNode; role: 
       )}
 
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        {narrow && (
+        {(
           <Box component="header" sx={{
             position: "sticky", top: 0, zIndex: 40, m: 0,
             display: "flex", alignItems: "center", gap: 1.25,
             px: 2, py: 1, pt: "calc(8px + env(safe-area-inset-top))",
             bgcolor: "var(--paper)", borderBottom: "1px solid var(--line)",
           }}>
-            <IconButton aria-label="Open menu" aria-expanded={open} aria-controls={open ? "ledger-navigation" : undefined}
+            {narrow && <IconButton aria-label="Open menu" aria-expanded={open} aria-controls={open ? "ledger-navigation" : undefined}
               onClick={() => setOpen(true)} sx={{ color: "var(--leaf)", width: 44, height: 44, borderRadius: "10px" }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M4 6h16M4 12h16M4 18h16" />
               </svg>
-            </IconButton>
-            <Typography sx={{ fontWeight: 700, fontSize: "1rem" }}>Ledger</Typography>
+            </IconButton>}
+            <Typography sx={{ fontWeight: 600, fontSize: ".9rem", color: "var(--muted)" }}>{narrow ? "Ledger" : "Ledger / Workspace"}</Typography>
             {!isAdmin && !!pending && <Button component={Link} href="/approvals" size="small"
               sx={{ ml: "auto", color: "var(--leaf)", bgcolor: "var(--soft)" }}>
               Review {pending}
@@ -337,10 +324,10 @@ export function AppShell({ children, role }: { children: React.ReactNode; role: 
         )}
         <Box
           sx={{
-            p: { xs: "20px 14px", sm: "24px" },
+            p: { xs: "24px 14px", sm: "32px" },
             pb: "max(24px, env(safe-area-inset-bottom))",
             width: "100%",
-            maxWidth: 1180,
+            maxWidth: 1440,
             mx: "auto",
           }}
         >

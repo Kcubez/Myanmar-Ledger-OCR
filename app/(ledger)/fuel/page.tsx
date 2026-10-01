@@ -49,7 +49,7 @@ export default async function FuelPage({
   return (
     <>
       <PageHeader
-        title="Fuel"
+        title="Legacy Fuel"
         sub={`${range.label} · gallons in/out per particular`}
         actions={
           <>

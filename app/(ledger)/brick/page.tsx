@@ -49,7 +49,7 @@ export default async function BrickPage({
   return (
     <>
       <PageHeader
-        title="Brick"
+        title="Legacy Brick"
         sub={`${range.label} · quantity & amount by item`}
         actions={
           <>

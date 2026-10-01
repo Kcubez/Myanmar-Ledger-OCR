@@ -8,13 +8,13 @@ import { createTheme } from "@mui/material/styles";
  */
 export const appTheme = createTheme({
   palette: {
-    primary: { main: "#21633e", dark: "#17452b", light: "#e2f5e6", contrastText: "#fff" },
+    primary: { main: "#7955c7", dark: "#6040a3", light: "#f0eafa", contrastText: "#fff" },
     success: { main: "#176637", light: "#e2f5e6" },
     error: { main: "#a63434", dark: "#7c2727", light: "#f7e5e5" },
     warning: { main: "#8a5b00", light: "#fff0cf" },
-    background: { default: "#f5f7f4", paper: "#ffffff" },
-    text: { primary: "#17241b", secondary: "#5f6f63" },
-    divider: "#d8e1d8",
+    background: { default: "#f7f6fb", paper: "#ffffff" },
+    text: { primary: "#252332", secondary: "#777383" },
+    divider: "#e9e6ef",
   },
   typography: {
     fontFamily: 'var(--font-inter), "Noto Sans Myanmar", Arial, sans-serif',

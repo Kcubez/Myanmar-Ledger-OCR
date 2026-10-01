@@ -19,6 +19,12 @@ export async function resolveUpload(id: string, approved: boolean) {
         const newer = await tx.pendingUpload.count({ where: { reportId: upload.reportId, mode: upload.mode, status: "CONFIRMED", createdAt: { gt: upload.createdAt } } });
         if (newer) throw new Error("A newer upload is already approved. Reject this older version.");
       }
+      if (upload.mode === "inventory") {
+        const payload = upload.payload as unknown as ExtractedPayload;
+        if (payload.sheetKind !== "materials" && payload.sheetKind !== "fuel") throw new Error("Invalid inventory sheet.");
+        const newer = await tx.pendingUpload.count({ where: { reportId: upload.reportId, mode: "inventory", status: "CONFIRMED", createdAt: { gt: upload.createdAt }, payload: { path: ["sheetKind"], equals: payload.sheetKind } } });
+        if (newer) throw new Error("A newer inventory sheet is already approved. Reject this older version.");
+      }
       await persistLines(tx, upload.reportId, upload.mode, upload.payload as unknown as ExtractedPayload, upload.report.date);
       await tx.dailyReport.update({ where: { id: upload.reportId }, data: { status: "CONFIRMED" } });
     }
