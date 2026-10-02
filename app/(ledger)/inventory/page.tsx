@@ -1,3 +1,5 @@
+import { PaginatedTable } from "../../../components/PaginatedTable";
+import { DeleteRangeButton } from "../../../components/DeleteRangeButton";
 import Link from "next/link";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import { prisma } from "../../../lib/prisma";
@@ -23,6 +25,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     orderBy: { date: "desc" }, skip: (page - 1) * 20, take: 21,
     include: { inventoryEntries: { where: entryWhere, orderBy: [{ sheetKind: "asc" }, { position: "asc" }] } },
   });
+  const entryCount = await prisma.inventoryEntry.count({ where: { ...entryWhere, report: { status: "CONFIRMED", date: rangeWhere(range) } } });
   const reports = found.slice(0, 20);
   function pageUrl(nextPage: number) {
     const query = new URLSearchParams();
@@ -30,7 +33,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     query.set("page", String(nextPage)); return `/inventory?${query}`;
   }
   return <>
-    <PageHeader title="Inventory" sub={`${range.label} · Daily stock movements and balances`} actions={<><DateFilter /><InventoryFilter /></>} />
+    <PageHeader title="Inventory" sub={`${range.label} · Daily stock movements and balances`} actions={<><DateFilter /><InventoryFilter /><DeleteRangeButton kind="inventory" category={category} kindLabel={category ? `${category} inventory` : "inventory"} count={entryCount} scopeLabel={range.label} gte={range.gte?.toISOString() ?? null} lte={range.lte?.toISOString() ?? null} /></>} />
     <div className="inventory-units"><span>Sand / Gravel · sud</span><span>Cement · bags</span><span>Brick · Nos</span><span>Fuel · gal</span></div>
     {!reports.length && <section className="card pad"><h2>No approved inventory sheets</h2><p className="muted">Send a daily Inventory photo in Telegram, then review it in Approvals. Try another date or product filter to see earlier sheets.</p><Link href="/approvals">Open approvals</Link></section>}
     {reports.map(report => <div key={report.id} style={{ display: "grid", gap: 16, marginBottom: 24 }}>
@@ -46,19 +49,18 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             <p><strong>Recorded in:</strong> {format(totalIn)} gal　 <strong>Recorded out:</strong> {format(totalOut)} gal　 <strong>Closing balance:</strong> {quantity(rows[rows.length - 1].balance)} gal</p>
             <p className="muted">Shared tank · Rows follow the source sheet. Closing balance is the final row, not a sum. Blank cells are shown as —; totals include recorded quantities only.</p>
           </>}
-          <div className="table-wrap ledger-list"><table className="responsive-ledger" role="table">
-            <thead><tr><th>#</th>{sheet === "materials" && <th>Product</th>}<th>Particular</th><th>In</th><th>Out</th><th>Balance</th><th>Unit</th></tr></thead>
+          <div className="table-wrap ledger-list"><PaginatedTable className="responsive-ledger" role="table">
+            <thead><tr><th>Date</th><th>Category</th><th>Particular</th><th>In</th><th>Out</th><th>Balance</th><th>Unit</th></tr></thead>
             <tbody>{rows.map(row => <tr key={row.id}>
-              <td data-label="#">{row.position + 1}</td>
-              {sheet === "materials" && <td data-label="Product">{title(row.category)}</td>}
+              <td data-label="Date">{report.date.toISOString().slice(0, 10)}</td>
+              <td data-label="Category">{title(row.category)}</td>
               <td data-label="Particular">{row.particular || "—"}{row.balanceOk === false && <span title="Running balance does not match the previous row"> · ⚠ Balance mismatch</span>}</td>
               <td data-label="In">{quantity(row.quantityIn)}</td><td data-label="Out">{quantity(row.quantityOut)}</td><td data-label="Balance"><strong>{quantity(row.balance)}</strong></td><td data-label="Unit">{row.category === "brick" ? "Nos" : row.unit}</td>
             </tr>)}</tbody>
-          </table></div>
+          </PaginatedTable></div>
         </section>;
       })}
     </div>)}
     {(page > 1 || found.length > 20) && <nav aria-label="Inventory pages" style={{ display: "flex", gap: 20, marginBottom: 24 }}>{page > 1 && <Link href={pageUrl(page - 1)}>← Newer dates</Link>}{found.length > 20 && <Link href={pageUrl(page + 1)}>Older dates →</Link>}</nav>}
-    <details className="card pad"><summary>Legacy records</summary><p className="muted">Previous Fuel / Brick ledgers are kept separately from daily Inventory sheets.</p><Link href="/fuel">Legacy Fuel</Link>{" · "}<Link href="/brick">Legacy Brick</Link></details>
   </>;
 }

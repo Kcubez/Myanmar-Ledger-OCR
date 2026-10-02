@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  Avatar,
+  Menu,
+  MenuItem,
   Badge,
   Box,
   Button,
@@ -60,7 +63,9 @@ function NavLinks({
   pathname,
   pending,
   onNavigate,
+  remembered,
 }: {
+  remembered: Record<string, string>;
   links: typeof LINKS;
   pathname: string;
   pending: number | null;
@@ -75,7 +80,8 @@ function NavLinks({
           <ListItemButton
             key={link.href}
             component={Link}
-            href={link.href}
+            href={remembered[link.href] || link.href}
+            prefetch={false}
             aria-current={active ? "page" : undefined}
             selected={active}
             onClick={onNavigate}
@@ -210,18 +216,25 @@ export function PageHeader({
   );
 }
 
-export function AppShell({ children, role }: { children: React.ReactNode; role: "admin" | "user" }) {
+export function AppShell({ children, role, account }: { children: React.ReactNode; role: "admin" | "user"; account?: { name: string; email: string } }) {
+  const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null);
   const pathname = usePathname();
   const router = useRouter();
+  const search = useSearchParams().toString();
+  const [remembered, setRemembered] = useState<Record<string, string>>({});
+  const currentUrl = pathname + (search ? `?${search}` : "");
+  if (remembered[pathname] !== currentUrl) {
+    setRemembered({ ...remembered, [pathname]: currentUrl });
+  }
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<number | null>(null);
   const narrow = useMediaQuery("(max-width:1024px)");
 
   function refreshPending() {
-    fetch("/api/approvals")
+    fetch("/api/approvals?countOnly=1")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setPending(Array.isArray(d?.reports) ? d.reports.length : 0))
+      .then((d) => setPending(typeof d?.count === "number" ? d.count : 0))
       .catch(() => setPending(null));
   }
 
@@ -269,15 +282,21 @@ export function AppShell({ children, role }: { children: React.ReactNode; role: 
         <Typography sx={{ fontWeight: 700 }}>Ledger</Typography>
         {narrow && <IconButton aria-label="Close menu" onClick={() => setOpen(false)} sx={{ ml: "auto", width: 44, height: 44, color: "#fff" }}>×</IconButton>}
       </Box>
-      <NavLinks links={links} pathname={pathname} pending={pending} onNavigate={() => setOpen(false)} />
+      <NavLinks links={links} pathname={pathname} pending={pending} remembered={remembered} onNavigate={() => setOpen(false)} />
       <Box sx={{ mt: "auto", pt: 2, borderTop: "1px solid rgba(255,255,255,.1)" }}>
-        <Button
-          fullWidth
-          onClick={signOut}
-          sx={{ bgcolor: "rgba(255,255,255,.06)", color: "#dfd7ed", "&:hover": { bgcolor: "rgba(255,255,255,.1)" } }}
-        >
-          Sign out
+        <Button fullWidth aria-label="Account menu" aria-haspopup="menu" aria-expanded={Boolean(accountAnchor)}
+          onClick={event => setAccountAnchor(event.currentTarget)}
+          sx={{ textAlign: "left", justifyContent: "flex-start", gap: 1, px: 1, py: 0.5, minHeight: 44, borderRadius: "10px", color: "#f6f1ff", "&:hover": { bgcolor: "rgba(255,255,255,.06)" } }}>
+          <Avatar sx={{ width: 32, height: 32, bgcolor: "#70529a", color: "#fff", fontSize: ".8rem", border: "2px solid #a48abc" }}>{(account?.name || "Ledger").split(/\s+/).slice(0, 2).map(word => word[0]).join("").toUpperCase()}</Avatar>
+          <Box sx={{ minWidth: 0, flex: 1 }}><Typography noWrap sx={{ fontSize: ".88rem", fontWeight: 500 }}>{account?.name || (isAdmin ? "Administrator" : "Ledger account")}</Typography><Typography noWrap sx={{ fontSize: ".68rem", color: "#b9afc5" }}>{account?.email || "Account options"}</Typography></Box>
+          <Box component="span" aria-hidden="true" sx={{ color: "#b9afc5", fontSize: ".7rem", transition: "transform .15s", transform: accountAnchor ? "rotate(180deg)" : "none" }}>▾</Box>
         </Button>
+        <Menu anchorEl={accountAnchor} open={Boolean(accountAnchor)} onClose={() => setAccountAnchor(null)} anchorOrigin={{ vertical: "top", horizontal: "right" }} transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+          slotProps={{ paper: { sx: { borderRadius: "12px", minWidth: 150, p: 0.5 } } }}>
+          <MenuItem onClick={() => { setAccountAnchor(null); void signOut(); }} sx={{ gap: 1.5, px: 1.5, py: 1, borderRadius: "8px", color: "#b3261e", fontWeight: 600, fontSize: ".88rem" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 4H4v16h5 M10 12h11 M17 8l4 4-4 4" /></svg>Sign out
+          </MenuItem>
+        </Menu>
       </Box>
     </Box>
   );
@@ -302,7 +321,7 @@ export function AppShell({ children, role }: { children: React.ReactNode; role: 
       )}
 
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        {(
+        {narrow && (
           <Box component="header" sx={{
             position: "sticky", top: 0, zIndex: 40, m: 0,
             display: "flex", alignItems: "center", gap: 1.25,

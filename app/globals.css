@@ -138,3 +138,9 @@ select { color:var(--ink); background:#fff; border:1px solid var(--line); paddin
  .ledger-list .responsive-ledger tbody td { font-size:.83rem; }
 }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; } }
+
+.delete-range-button { display:inline-flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid #eed5d8; border-radius:10px; background:#fff; color:#a93240; font-size:.8rem; font-weight:600; }
+.delete-range-button:hover:not(:disabled) { background:#fff1f2; border-color:#d798a0; }
+.delete-range-button:disabled { opacity:.45; cursor:not-allowed; }
+.table-pagination { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:12px; padding:14px 4px; font-size:.8rem; color:var(--muted); }
+.table-pagination button { padding:6px 10px; font-size:.8rem; }

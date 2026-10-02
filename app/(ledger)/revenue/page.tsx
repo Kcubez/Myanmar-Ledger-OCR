@@ -1,3 +1,4 @@
+import { PaginatedTable } from "../../../components/PaginatedTable";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import { prisma } from "../../../lib/prisma";
 import { parseDateFilter, rangeWhere } from "../../../lib/date-filter";
@@ -98,7 +99,7 @@ export default async function RevenuePage({
       <section className="card pad" style={{ marginTop: 16 }}>
         <h2>Daily revenue</h2>
         <div className="table-wrap ledger-list">
-          <table className="responsive-ledger" role="table">
+          <PaginatedTable className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -137,7 +138,7 @@ export default async function RevenuePage({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </PaginatedTable>
         </div>
       </section>
     </>

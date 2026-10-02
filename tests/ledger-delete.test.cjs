@@ -11,24 +11,26 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/date-filter.ts', 'utf
 function fixture({ failUpdate = false, unauthorized = false } = {}) {
   let state = { entries: 3, total: 100n };
   let transactions = 0;
+  let deletedWhere;
+  let reportWhere;
   const prisma = {
     async $transaction(run, options) {
       transactions++;
       assert.equal(options.isolationLevel, 'Serializable');
       const draft = { ...state };
       const ledger = {
-        async deleteMany() { const count = draft.entries; draft.entries = 0; return { count }; },
+        async deleteMany({ where }) { deletedWhere = where; const count = draft.entries; draft.entries = 0; return { count }; },
         async groupBy() { return []; },
       };
       const result = await run({
         dailyReport: {
-          async findMany() { return [{ id: 'report-1' }]; },
+          async findMany({ where }) { reportWhere = where; return [{ id: 'report-1' }]; },
           async update({ data }) {
             if (failUpdate) throw new Error('Simulated database failure');
             draft.total = data.totalRevenue ?? data.totalExpense ?? data.totalFuelIn;
           },
         },
-        revenueLine: ledger, expenseLine: ledger, fuelEntry: ledger, brickEntry: ledger,
+        revenueLine: ledger, expenseLine: ledger, fuelEntry: ledger, brickEntry: ledger, inventoryEntry: ledger, maintenanceLine: ledger,
       });
       state = draft;
       return result;
@@ -44,7 +46,7 @@ function fixture({ failUpdate = false, unauthorized = false } = {}) {
     throw new Error(`Unexpected module: ${name}`);
   } };
   vm.runInNewContext(compiled, sandbox);
-  return { invoke: body => sandbox.exports.DELETE({ json: async () => body }), state: () => state, transactions: () => transactions };
+  return { invoke: body => sandbox.exports.DELETE({ json: async () => body }), state: () => state, transactions: () => transactions, deletedWhere: () => deletedWhere, reportWhere: () => reportWhere };
 }
 for (const kind of ['revenue', 'expense', 'fuel']) {
   test(`${kind}: deletion and totals commit together`, async () => {
@@ -86,4 +88,22 @@ test('row dates override report dates; legacy dates and exclusive boundary work'
   assert.equal(matches({date:end,reportDate:start}), false);
   assert.equal(matches({date:null,reportDate:start}), true);
   assert.equal(matches({date:null,reportDate}), false);
+});
+
+for (const kind of ['inventory', 'maintenance']) {
+  test(`${kind}: bulk deletion stays in confirmed reports and retains totals`, async () => {
+    const f = fixture();
+    const response = await f.invoke({ kind, ...(kind === 'inventory' ? { category: 'fuel' } : {}), gte: '2026-09-01', lte: '2026-10-01' });
+    assert.equal(response.body.deleted, 3);
+    assert.equal(f.reportWhere().status, 'CONFIRMED');
+    assert.equal(f.reportWhere().date.lt.toISOString(), '2026-10-01T00:00:00.000Z');
+    assert.equal(f.deletedWhere().reportId.in[0], 'report-1');
+    assert.equal(f.deletedWhere().category, kind === 'inventory' ? 'fuel' : undefined);
+    assert.equal(f.state().total, 100n);
+  });
+}
+test('invalid category cannot silently expand deletion to every product', async () => {
+  const f = fixture();
+  assert.equal((await f.invoke({ kind: 'inventory', category: 'unknown' })).status, 400);
+  assert.equal(f.transactions(), 0);
 });

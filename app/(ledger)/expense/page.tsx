@@ -1,3 +1,4 @@
+import { PaginatedTable } from "../../../components/PaginatedTable";
 import { ExpenseWageDetails } from "../../../components/ExpenseWageDetails";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import { prisma } from "../../../lib/prisma";
@@ -93,7 +94,7 @@ export default async function ExpensePage({
       <section className="card pad" style={{ marginTop: 16 }}>
         <h2>Daily expense</h2>
         <div className="table-wrap ledger-list">
-          <table className="responsive-ledger" role="table">
+          <PaginatedTable className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -130,7 +131,7 @@ export default async function ExpensePage({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </PaginatedTable>
         </div>
       </section>
       <ExpenseWageDetails lines={lines.filter(line => line.category === "WAGES")} />

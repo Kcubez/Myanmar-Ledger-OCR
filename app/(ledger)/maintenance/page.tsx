@@ -1,7 +1,9 @@
+import { PaginatedTable } from "../../../components/PaginatedTable";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import { prisma } from "../../../lib/prisma";
 import { parseDateFilter, rangeWhere } from "../../../lib/date-filter";
 import { PageHeader, StatCard } from "../../../components/layout";
+import { DeleteRangeButton } from "../../../components/DeleteRangeButton";
 import { DateFilter } from "../../../components/DateFilter";
 import { DeleteRowButton } from "../../../components/DeleteRowButton";
 import { RowEditModal } from "../../../components/QuickEditModal";
@@ -29,7 +31,7 @@ export default async function MaintenancePage({
     prisma.maintenanceLine.findMany({
       where: { report: { date: where, ...confirmed } },
       orderBy: [{ report: { date: "asc" } }, { id: "asc" }],
-      take: 50,
+
       include: { report: { select: { date: true } } },
     }),
     prisma.maintenanceLine.count({ where: { report: { date: where, ...confirmed } } }),
@@ -42,7 +44,7 @@ export default async function MaintenancePage({
       <PageHeader
         title="Maintenance"
         sub={`${range.label} · spend per vehicle/ship · ${entryCount} lines`}
-        actions={<DateFilter />}
+        actions={<><DateFilter /><DeleteRangeButton kind="maintenance" kindLabel="maintenance" count={entryCount} scopeLabel={range.label} gte={range.gte?.toISOString() ?? null} lte={range.lte?.toISOString() ?? null} /></>}
       />
 
       <section className="stats" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))" }} aria-label="Maintenance totals">
@@ -65,13 +67,13 @@ export default async function MaintenancePage({
       <section className="card pad" style={{ marginTop: 16 }}>
         <h2>Recent lines</h2>
         <div className="table-wrap ledger-list">
-          <table className="responsive-ledger" role="table">
+          <PaginatedTable className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Vehicle / Ship</th>
+                <th>Vehicle name</th>
+                <th>Maintenance task</th>
                 <th>Amount</th>
-                <th>Part</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -81,9 +83,9 @@ export default async function MaintenancePage({
                 return (
                   <tr key={row.id}>
                     <td data-label="Date">{dateKey}</td>
-                    <td data-label="Vehicle / Ship">{row.vehicle || "—"}</td>
+                    <td data-label="Vehicle name">{row.vehicle || "—"}</td>
+                    <td data-label="Maintenance task">{row.part || "—"}</td>
                     <td data-label="Amount">{Number(row.amount).toLocaleString()}</td>
-                    <td data-label="Part">{row.part || "—"}</td>
                     <td data-label="Action">
                       <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                         <RowEditModal dateKey={dateKey} kind="maintenance" rowId={row.id} />
@@ -94,7 +96,7 @@ export default async function MaintenancePage({
                 );
               })}
             </tbody>
-          </table>
+          </PaginatedTable>
         </div>
       </section>
     </>

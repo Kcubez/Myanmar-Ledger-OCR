@@ -17,8 +17,10 @@ export function DeleteRangeButton({
   scopeLabel,
   gte,
   lte,
+  category,
 }: {
-  kind: "fuel" | "brick" | "revenue" | "expense";
+  kind: "fuel" | "brick" | "revenue" | "expense" | "inventory" | "maintenance";
+  category?: string;
   kindLabel: string;
   count: number;
   scopeLabel: string;
@@ -38,7 +40,7 @@ export function DeleteRangeButton({
       const response = await fetch("/api/ledger-entries", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, gte, lte }),
+        body: JSON.stringify({ kind, gte, lte, category }),
       });
       if (!response.ok) throw new Error("Delete failed.");
       setConfirming(false);
@@ -54,18 +56,18 @@ export function DeleteRangeButton({
     <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
       <button
         type="button"
-        className="secondary"
-        style={{ padding: "6px 12px", color: "#b3261e" }}
+        className="delete-range-button"
+
         disabled={busy || count === 0}
         title={count === 0 ? "Nothing in this range" : `Delete ${count} ${kindLabel} entries in ${scopeLabel}`}
         onClick={() => setConfirming(true)}
       >
-        Delete
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7" /></svg> Delete entries
       </button>
       <Modal
         open={confirming}
         title={`Delete ${what} in ${scopeLabel}?`}
-        body="This cannot be undone. Source photos are kept."
+        body="This permanently deletes the selected approved entries. Other ledger types and pending uploads are unchanged. Originals remain in Telegram."
         confirmLabel="Delete"
         danger
         busy={busy}

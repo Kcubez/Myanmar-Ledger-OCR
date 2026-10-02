@@ -15,9 +15,12 @@ export async function DELETE(req: NextRequest) {
   const guard = await requireOwner(req);
   if (guard.error) return guard.error;
 
-  const body = (await req.json().catch(() => ({}))) as { kind?: string; gte?: string | null; lte?: string | null };
-  if (body.kind !== "fuel" && body.kind !== "brick" && body.kind !== "revenue" && body.kind !== "expense") {
-    return NextResponse.json({ message: "kind must be fuel|brick|revenue|expense." }, { status: 400 });
+  const body = (await req.json().catch(() => ({}))) as { kind?: string; gte?: string | null; lte?: string | null; category?: string };
+  if (body.kind !== "fuel" && body.kind !== "brick" && body.kind !== "revenue" && body.kind !== "expense" && body.kind !== "inventory" && body.kind !== "maintenance") {
+    return NextResponse.json({ message: "Invalid ledger kind." }, { status: 400 });
+  }
+  if (body.category !== undefined && (body.kind !== "inventory" || !["sand", "gravel", "cement", "brick", "fuel"].includes(body.category))) {
+    return NextResponse.json({ message: "Invalid inventory category." }, { status: 400 });
   }
   const gte = body.gte ? new Date(body.gte) : null;
   const lte = body.lte ? new Date(body.lte) : null;
@@ -39,7 +42,7 @@ export async function DELETE(req: NextRequest) {
         ? { fuelEntries: { some: rowWhere } }
         : body.kind === "brick"
           ? { brickEntries: { some: rowWhere } }
-          : { date: dateFilter },
+          : { date: dateFilter, status: "CONFIRMED" },
       select: { id: true },
     });
     const ids = reports.map((report) => report.id);
@@ -62,6 +65,10 @@ export async function DELETE(req: NextRequest) {
         }
       } else if (body.kind === "brick") {
         deleted = (await tx.brickEntry.deleteMany({ where: rowWhere })).count;
+      } else if (body.kind === "inventory") {
+        deleted = (await tx.inventoryEntry.deleteMany({ where: { reportId: { in: ids }, ...(body.category ? { category: body.category } : {}) } })).count;
+      } else if (body.kind === "maintenance") {
+        deleted = (await tx.maintenanceLine.deleteMany({ where: { reportId: { in: ids } } })).count;
       } else if (body.kind === "revenue") {
         deleted = (await tx.revenueLine.deleteMany({ where: { reportId: { in: ids } } })).count;
         const sums = await tx.revenueLine.groupBy({

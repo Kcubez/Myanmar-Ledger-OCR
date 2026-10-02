@@ -13,19 +13,18 @@ const pool =
   globalForPrisma.pool ??
   new Pool({
     connectionString,
-    max: 10,
+    max: 5,
+    keepAlive: true,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
   });
 
 // Handle unexpected idle client disconnections so they don't crash or hang the process
-pool.on("error", (err) => {
+if (!globalForPrisma.pool) pool.on("error", (err) => {
   console.warn("Postgres pool idle client warning:", err.message);
 });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.pool = pool;
-}
+globalForPrisma.pool = pool;
 
 const adapter = new PrismaPg(pool);
 
@@ -36,7 +35,5 @@ export const prisma =
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+globalForPrisma.prisma = prisma;
 

@@ -1,3 +1,5 @@
+import { retryRead } from "../../../lib/read-retry";
+import { PaginatedTable } from "../../../components/PaginatedTable";
 import { legacyPendingWhere } from "../../../lib/pending-uploads";
 import { ExpenseWageDetails } from "../../../components/ExpenseWageDetails";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
@@ -25,7 +27,7 @@ export default async function DashboardPage({
   // in Approvals until reviewed. The pending card + review button below are
   // the pointer there.
   const confirmed = { status: "CONFIRMED" } as const;
-  const [reportRows, revenueAgg, expenseAgg, pendingCount, wageLines] = await Promise.all([
+  const [reportRows, revenueAgg, expenseAgg, legacyCount, uploadCount, wageLines] = await retryRead(() => prisma.$transaction([
     prisma.dailyReport.findMany({
       where: { date: where, ...confirmed },
       orderBy: { date: "asc" },
@@ -45,13 +47,16 @@ export default async function DashboardPage({
       where: { report: { date: where, ...confirmed } },
       _sum: { amount: true },
     }),
-    Promise.all([prisma.dailyReport.count({ where: legacyPendingWhere }), prisma.pendingUpload.count({ where: { status: "PENDING" } })]).then(([reports, uploads]) => reports + uploads),
+    prisma.dailyReport.count({ where: legacyPendingWhere }),
+    prisma.pendingUpload.count({ where: { status: "PENDING" } }),
     prisma.expenseLine.findMany({
       where: { category: "WAGES", report: { date: where, ...confirmed } },
       include: { report: { select: { date: true } } },
       orderBy: [{ report: { date: "desc" } }, { id: "asc" }],
     }),
-  ]);
+  ]));
+
+  const pendingCount = legacyCount + uploadCount;
 
   // Days whose lines were all deleted vanish from the dashboard (stats,
   // trend, and Recent table stay consistent — one filtered array).
@@ -161,7 +166,7 @@ export default async function DashboardPage({
         <p className="section-eyebrow">History</p>
         <h2>Recent reports</h2>
         <div className="table-wrap ledger-list">
-          <table className="responsive-ledger" role="table">
+          <PaginatedTable className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -175,7 +180,6 @@ export default async function DashboardPage({
               {reports
                 .slice()
                 .reverse()
-                .slice(0, 14)
                 .map((r) => (
                   <tr key={r.id}>
                     <td data-label="Date">{dayLabel(r.date)}</td>
@@ -188,7 +192,7 @@ export default async function DashboardPage({
                   </tr>
                 ))}
             </tbody>
-          </table>
+          </PaginatedTable>
         </div>
       </section>
     </>

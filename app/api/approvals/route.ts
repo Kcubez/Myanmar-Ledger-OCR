@@ -11,6 +11,11 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const { error } = await requireOwner(req);
   if (error) return error;
+  if (req.nextUrl.searchParams.get("countOnly") === "1") {
+    const reports = await prisma.dailyReport.count({ where: legacyPendingWhere });
+    const uploads = await prisma.pendingUpload.count({ where: { status: "PENDING" } });
+    return NextResponse.json({ count: reports + uploads });
+  }
   const reports = await prisma.dailyReport.findMany({
     where: legacyPendingWhere,
     orderBy: { date: "desc" },

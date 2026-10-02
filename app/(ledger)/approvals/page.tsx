@@ -30,7 +30,7 @@ export default async function ApprovalsPage() {
     <>
       <PageHeader
         title="Approvals"
-        sub={`${reports.length + uploads.length} review item(s) awaiting review — oldest first`}
+        sub={`${reports.length + uploads.length} review item(s) awaiting review`}
       />
 
       {reports.length === 0 && uploads.length === 0 ? (

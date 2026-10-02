@@ -557,7 +557,7 @@ async function processPhoto(
     botToken,
     chatId,
     text: buildExtractSummaryMessage({ summary: extracted.summary, dateKey: key, mode, added, skipped }),
-    replyMarkup: { inline_keyboard: [[{ text: "Submit for review / စစ်ဆေးရန်ပို့မည်", callback_data: `confirm:${report.id}` }]] },
+    replyMarkup: { inline_keyboard: [[{ text: "Submit for review", callback_data: `confirm:${report.id}` }]] },
   });
   await updateProgress(summaryMsg ? processingCompleteMessage : processingFailedMessage);
   // Remember the bot's reply so approval flows can edit it in place later.
