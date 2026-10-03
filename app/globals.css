@@ -144,16 +144,18 @@ select { color:var(--ink); background:#fff; border:1px solid var(--line); paddin
 }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; } }
 
-.delete-range-button { display:inline-flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid #eed5d8; border-radius:10px; background:#fff; color:#a93240; font-size:.8rem; font-weight:600; }
+.delete-range-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; padding:9px 14px; border:1px solid #eed5d8; border-radius:10px; background:#fff; color:#a93240; font-size:.8rem; font-weight:600; white-space:nowrap; }
+/* Compact variant inside table rows — page headers keep the full 48px. */
+.table-wrap .delete-range-button { min-height:36px; padding:7px 11px; }
 .delete-range-button:hover:not(:disabled) { background:#fff1f2; border-color:#d798a0; }
 .delete-range-button:disabled { opacity:.45; cursor:not-allowed; }
 .table-pagination { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:12px; padding:14px 4px; font-size:.8rem; color:var(--muted); }
 .table-pagination button { padding:6px 10px; font-size:.8rem; }
 .table-pagination button:disabled { opacity:.45; cursor:not-allowed; }
 
-.inventory-product-filter { display:inline-flex; padding:5px 8px; border:1px solid var(--line); border-radius:12px; background:white; }
-.inventory-product-filter select { margin:0; padding:6px 32px 6px 10px; font-size:.85rem; font-weight:600; border-radius:8px; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23605c70' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; background-size:12px; cursor:pointer; }
-.row-action,.delete-range-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:7px 11px; border:1px solid var(--line); border-radius:8px; font-size:.8rem; font-weight:600; line-height:20px; white-space:nowrap; }
+.inventory-product-filter { display:inline-flex; padding:4px 8px; border:1px solid var(--line); border-radius:12px; background:white; }
+.inventory-product-filter select { margin:0; min-height:38px; padding:9px 30px 9px 12px; font-size:.85rem; font-weight:600; border-radius:8px; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23605c70' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; background-size:12px; cursor:pointer; }
+.row-action { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:7px 11px; border:1px solid var(--line); border-radius:8px; font-size:.8rem; font-weight:600; line-height:20px; white-space:nowrap; }
 .row-action { background:var(--soft); color:var(--leaf); }
 .row-action:hover { background:#e8dff6; }
 .row-action-danger,.delete-range-button { background:#fff; color:#a93240; border-color:#eed5d8; }
@@ -261,8 +263,8 @@ select { color:var(--ink); background:#fff; border:1px solid var(--line); paddin
 
 /* DateFilter controls: inline styles kill the default outline, so the focus
    ring is restored here to keep keyboard focus visible. */
-.date-filter-select:focus-visible,.date-filter-input:focus-visible { outline:none; border-color:var(--leaf); box-shadow:0 0 0 3px rgba(121,85,199,.16); }
-@media(max-width:760px) { .date-filter-select,.date-filter-input { min-height:44px; } }
+.date-filter-select:focus-visible,.date-filter-input:focus-visible,.inventory-filter-select:focus-visible { outline:none; border-color:var(--leaf); box-shadow:0 0 0 3px rgba(121,85,199,.16); }
+@media(max-width:760px) { .date-filter-select,.date-filter-input,.inventory-filter-select { min-height:44px; } }
 
 /* Empty states: shared centered treatment for tables and charts. */
 .table-empty { display:grid; gap:10px; justify-items:center; padding:36px 16px; color:var(--muted); text-align:center; }
@@ -279,4 +281,16 @@ select { color:var(--ink); background:#fff; border:1px solid var(--line); paddin
 .table-search input::placeholder { color:var(--muted); opacity:.8; }
 .table-search-clear { flex:none; border:0; background:var(--soft); color:var(--leaf); width:24px; height:24px; border-radius:50%; font-size:1rem; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; }
 .table-search-clear:hover { background:#e8dff6; }
+/* Mobile filter bar: page header actions collapse into one horizontal
+   snap-scroll strip instead of stacking full-width. Desktop untouched. */
+@media(max-width:760px) {
+  .page-actions { flex-wrap:nowrap; overflow-x:auto; gap:8px; margin:0 -14px; padding:4px 14px 8px; scroll-snap-type:x proximity; scrollbar-width:none; }
+  .page-actions::-webkit-scrollbar { display:none; }
+  .page-actions > * { flex:none; scroll-snap-align:start; }
+  .page-actions .inventory-product-filter { width:auto; }
+  .page-actions .inventory-product-filter select { flex:none; font-size:16px; }
+  .page-actions .date-filter-select,.page-actions .date-filter-input { font-size:16px; }
+  .page-actions .delete-range-button { min-height:44px; }
+}
+
 @media(max-width:760px) { .table-search { width:100%; } .table-search input { width:auto; font-size:16px; } .table-header-row { align-items:stretch; flex-direction:column; } .table-header-row .table-tools { width:100%; } }

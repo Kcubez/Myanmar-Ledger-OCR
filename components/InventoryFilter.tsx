@@ -9,7 +9,7 @@ export function InventoryFilter({ variants }: { variants: {id:string; label:stri
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   return <div className="inventory-product-filter" aria-busy={pending}>
-    <select aria-label="Filter inventory by product" value={params.get("category") ?? "all"} disabled={pending} onChange={event => {
+    <select aria-label="Filter inventory by product" className="inventory-filter-select" value={params.get("category") ?? "all"} disabled={pending} onChange={event => {
       const next = new URLSearchParams(params.toString());
       next.set("category", event.target.value); next.delete("page"); next.delete("variant");
       startTransition(() => router.replace(`/inventory?${next}`, { scroll: false }));
@@ -17,7 +17,7 @@ export function InventoryFilter({ variants }: { variants: {id:string; label:stri
       <option value="all">All products</option>
       {INVENTORY_CATEGORIES.map(category => <option key={category} value={category}>{category[0].toUpperCase() + category.slice(1)}</option>)}
     </select>
-    <select aria-label="Filter inventory by variant" disabled={pending || !variants.length} value={params.get("variant") ?? ""} onChange={event => {
+    <select aria-label="Filter inventory by variant" className="inventory-filter-select" disabled={pending || !variants.length} value={params.get("variant") ?? ""} onChange={event => {
       const next = new URLSearchParams(params.toString()); next.delete("page");
       if (event.target.value) next.set("variant",event.target.value); else next.delete("variant");
       startTransition(() => router.replace(`/inventory?${next}`, {scroll:false}));

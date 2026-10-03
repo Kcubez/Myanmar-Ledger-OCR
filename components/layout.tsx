@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AnimatedStatValue } from "./AnimatedStatValue";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -194,7 +195,7 @@ export function StatCard({
             color: "var(--ink)",
           }}
         >
-          {value}
+          <AnimatedStatValue value={value} />
         </Typography>
         {sub && (
           <Typography variant="caption" sx={{ color: tone ? TONE_TEXT[tone] : "var(--muted)" }}>
@@ -232,7 +233,7 @@ export function PageHeader({
           </Typography>
         )}
       </Box>
-      {actions && <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>{actions}</Box>}
+      {actions && <Box className="page-actions" sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>{actions}</Box>}
     </Box>
   );
 }

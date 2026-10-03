@@ -113,18 +113,19 @@ export function DateFilter() {
   return (
     <Box
       component="fieldset"
+      className="date-filter"
       disabled={isPending}
       aria-busy={isPending}
       role="group"
       aria-label="Date filter"
       sx={{
         m: 0,
-        p: "5px 8px",
+        p: "4px 8px",
         minWidth: 0,
         display: "inline-flex",
         alignItems: "center",
         gap: 1,
-        flexWrap: "wrap",
+        flexWrap: "nowrap",
         bgcolor: isPending ? "rgba(242, 238, 249, 0.7)" : "#ffffff",
         border: "1px solid",
         borderColor: isPending ? "var(--leaf)" : "var(--line)",
