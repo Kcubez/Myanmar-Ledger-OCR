@@ -114,11 +114,11 @@ async function modeAccess(
     botToken,
     chatId,
     text: [
-      "📋 <b>Ledger အမျိုးအစား ရွေးပါ</b>",
+      "📋 <b>Choose ledger type</b>",
       "",
       sender.allowedLedgers.length
-        ? "ခွင့်ပြုထားသော ledgers —"
-        : "ခွင့်ပြုထားသော ledger မရှိသေးပါ။ admin ကို ဆက်သွယ်ပါ။",
+        ? "Available ledger types:"
+        : "No ledger access yet. Contact your administrator.",
     ].join("\n"),
     replyMarkup: buildLedgerMenuButtons(sender.allowedLedgers),
   });
@@ -310,7 +310,7 @@ async function handleText(
       await sendTelegramMessage({
         botToken,
         chatId,
-        text: "📋 <b>Ledger ရွေးပါ —</b>",
+        text: "📋 <b>Choose ledger type</b>",
         replyMarkup: buildLedgerMenuButtons(full.allowedLedgers),
       });
       return;
@@ -329,7 +329,7 @@ async function handleText(
     await sendTelegramMessage({
       botToken,
       chatId,
-      text: "📋 <b>Ledger ရွေးပါ —</b>",
+      text: "📋 <b>Choose ledger type</b>",
       replyMarkup: buildLedgerMenuButtons(full.allowedLedgers),
     });
     return;
@@ -403,7 +403,7 @@ async function handleCallback(
       botToken,
       chatId,
       messageId,
-      text: "📋 <b>Ledger ရွေးပါ —</b>",
+      text: "📋 <b>Choose ledger type</b>",
       replyMarkup: buildLedgerMenuButtons(full.allowedLedgers),
     });
     return;

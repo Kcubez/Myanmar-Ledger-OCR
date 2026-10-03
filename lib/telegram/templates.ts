@@ -16,7 +16,7 @@ export const LEDGER_LABELS: Record<LedgerType, { emoji: string; en: string; mm: 
 
 export function ledgerLabel(mode: LedgerType): string {
   const info = LEDGER_LABELS[mode];
-  return `${info.emoji} ${info.en} (${info.mm})`;
+  return `${info.emoji} ${info.en}`;
 }
 
 export function buildLedgerMenuButtons(allowedLedgers: string[]) {
@@ -40,16 +40,16 @@ export function buildMainMenuButtons() {
 }
 
 export function getFormatPromptForMode(mode: LedgerType | null | undefined): string {
-  if (!mode) return "<b>Ledger Bot</b>\nChoose a ledger from /menu, then send a clear photo.\n/menu မှ စာရင်းအမျိုးအစားရွေးပြီး ကြည်လင်သောပုံ ပို့ပါ။";
+  if (!mode) return "<b>Ledger Bot</b>\nChoose a ledger from /menu, then send a clear photo.";
   const instructions: Record<LedgerType, string> = {
-    inventory: "Send a daily materials or fuel summary with Date, Particular, In, Out and Balance. Include every row and brand.\nနေ့စဉ် ပစ္စည်း သို့မဟုတ် ဆီစာရင်းကို ရက်စွဲ၊ အမည်၊ အဝင်၊ အထွက်၊ လက်ကျန်နှင့် အမျိုးကွဲအားလုံး ပါအောင်ပို့ပါ။",
-    revenue: "Include the total and all payment methods.\nစုစုပေါင်းနှင့် ငွေပေးချေမှုခွဲချက်အားလုံး ပါအောင်ပို့ပါ။",
-    expense: "Include BOTH the expense summary and labour details in one photo. Labour details are part of the subtotal, not an extra charge.\nအပေါ်ကအနှစ်ချုပ်နှင့် အောက်ကလုပ်အားခအသေးစိတ် နှစ်ပိုင်းလုံးပါအောင် ပို့ပါ။ လုပ်အားခကို နှစ်ခါမပေါင်းပါ။",
-    maintenance: "Include date, vehicle/ship, amount and repair item.\nရက်စွဲ၊ ယာဉ်/သင်္ဘော၊ ငွေပမာဏနှင့် ပြုပြင်သည့်ပစ္စည်း ပါအောင်ပို့ပါ။",
-    fuel: "Send each page in order, including Date, Particular, In, Out and Balance. Multiple photos are accepted.\nရက်စွဲ၊ အကြောင်းအရာ၊ အဝင်၊ အထွက်၊ လက်ကျန် ပါအောင် စာမျက်နှာအစဉ်လိုက် ပို့ပါ။ ပုံများစွာ တင်နိုင်ပါသည်။",
-    brick: "Include column headings and all rows. Unclear handwriting needs dashboard review.\nခေါင်းစဉ်နှင့် စာကြောင်းအားလုံး ပါအောင်ပို့ပါ။ မရှင်းသောလက်ရေးကို dashboard တွင် စစ်ဆေးပါ။",
+    inventory: "Send a daily materials or fuel summary with Date, Particular, In, Out and Balance.",
+    revenue: "Include the total and all payment methods.",
+    expense: "Include BOTH the expense summary and wage details in one photo.",
+    maintenance: "Include date, vehicle/ship, amount and repair item.",
+    fuel: "Send each page in order, including Date, Particular, In, Out and Balance. Multiple photos are accepted.",
+    brick: "Include column headings and all rows. Unclear handwriting needs dashboard review.",
   };
-  return `<b>${ledgerLabel(mode)}</b>\n\n${instructions[mode]}\n\nKeep the page flat and well lit.\nစာမျက်နှာကို ပြန့်ပြန့်ထားပြီး အလင်းကောင်းကောင်းဖြင့် ရိုက်ပါ။`;
+  return `<b>${ledgerLabel(mode)}</b>\n\n${instructions[mode]}\n\nKeep the page flat and well lit.`;
 }
 
 /**
@@ -65,11 +65,11 @@ export function buildExtractSummaryMessage(opts: {
   skipped: number;
 }): string {
   const note = opts.mode === "inventory"
-    ? "After approval, this upload replaces the same date’s materials or fuel sheet. The other sheet stays unchanged.\nအတည်ပြုပြီးမှ ရက်စွဲတူ ပစ္စည်း သို့မဟုတ် ဆီစာရွက်ကို အစားထိုးပါမည်။"
+    ? "After approval, this upload replaces the same date’s materials or fuel sheet. The other sheet stays unchanged."
     : opts.mode === "fuel" || opts.mode === "brick"
-    ? "Rows will be merged after approval; duplicates will be skipped.\nအတည်ပြုပြီးမှ စာကြောင်းအသစ်များ ပေါင်းထည့်ပါမည်။"
-    : "After approval, this upload replaces the same ledger for this report date. Approved data remains visible until then.\nအတည်ပြုပြီးမှ ရက်စွဲတူ၊ အမျိုးအစားတူစာရင်းကို အစားထိုးပါမည်။";
-  return `${opts.summary}\n\n<b>Report date / စာရင်းရက်စွဲ:</b> ${escapeHtml(opts.dateKey)}\n${note}\n\n<b>Pending review / စစ်ဆေးရန်စောင့်နေသည်</b>\nCheck the details, then tap Submit for review. Final approval happens in the dashboard.\nအချက်အလက်စစ်ပြီး စစ်ဆေးရန်ပို့မည် ကိုနှိပ်ပါ။ နောက်ဆုံးအတည်ပြုခြင်းကို dashboard မှ လုပ်ပါမည်။`;
+    ? "Rows will be merged after approval; duplicates will be skipped."
+    : "After approval, this upload replaces the same ledger for this report date. Approved data remains visible until then.";
+  return `${opts.summary}\n\n<b>Report date / စာရင်းရက်စွဲ:</b> ${escapeHtml(opts.dateKey)}\n${note}\n\n<b>Pending review </b>\nCheck the details, then tap Submit for review. Final approval happens in the dashboard.`;
 }
 
 export function getLinkInstructions(): string {  return [
@@ -94,8 +94,8 @@ export function escapeHtml(value: string | null | undefined): string {
     .replace(/"/g, "&quot;");
 }
 
-export const processingCompleteMessage = "✅ Extraction complete. Review the summary below.\nပုံဖတ်ပြီးပါပြီ။ အောက်ပါအချက်အလက်များကို စစ်ဆေးပေးပါ။";
-export const processingFailedMessage = "❌ Processing stopped. Please try again later; check Approvals before resending.\nလုပ်ဆောင်မှု ရပ်သွားပါပြီ။ ပြန်မပို့မီ Approvals ကို စစ်ကြည့်ပြီး ခဏကြာမှ ပြန်စမ်းပါ။";
-export const waitingForApprovalMessage = "⏳ Submitted for review. Waiting for dashboard approval.\nစစ်ဆေးရန် ပို့ပြီးပါပြီ။ Dashboard မှ အတည်ပြုချက်ကို စောင့်နေပါသည်။";
+export const processingCompleteMessage = "✅ Extraction complete. Review the summary below.";
+export const processingFailedMessage = "❌ Processing stopped. Please try again later; check Approvals before resending.";
+export const waitingForApprovalMessage = "⏳ Submitted for review. Waiting for dashboard approval.";
 
-export const extractionEmptyMessage = "⚠️ No usable rows found. Check the selected ledger type and resend a clear photo.\nအသုံးပြုနိုင်သော စာရင်းကြောင်း မတွေ့ပါ။ ရွေးထားသော စာရင်းအမျိုးအစားကို စစ်ပြီး ပုံကြည်လင်စွာ ပြန်ပို့ပါ။";
+export const extractionEmptyMessage = "⚠️ No usable rows found. Check the selected ledger type and resend a clear photo.";

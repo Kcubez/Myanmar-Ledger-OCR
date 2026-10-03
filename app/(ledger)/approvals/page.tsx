@@ -35,7 +35,7 @@ export default async function ApprovalsPage() {
 
       {reports.length === 0 && uploads.length === 0 ? (
         <section className="card pad">
-          <p className="muted">✅ All clear — nothing pending.</p>
+          <p className="muted">✅ All clear - nothing pending.</p>
         </section>
       ) : (
         <div className="queue">

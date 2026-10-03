@@ -11,10 +11,10 @@ export default function Loading() {
         minHeight: "100dvh",
         display: "grid",
         placeItems: "center",
-        bgcolor: "var(--background, #f5f7f4)",
+        bgcolor: "var(--background, #f7f6fb)",
       }}
     >
-      <CircularProgress size={32} thickness={4} sx={{ color: "var(--leaf, #21633e)" }} />
+      <CircularProgress size={32} thickness={4} sx={{ color: "var(--leaf, #7955c7)" }} />
     </Box>
   );
 }

@@ -34,7 +34,7 @@ export function AuthLayout({
           width: 500,
           height: 500,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(33, 99, 62, 0.08) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(121, 85, 199, 0.08) 0%, transparent 70%)",
           pointerEvents: "none",
         },
         "&::after": {
@@ -77,7 +77,7 @@ export function AuthLayout({
               color: "#fff",
               fontWeight: 800,
               fontSize: "1.2rem",
-              boxShadow: "0 4px 10px rgba(33, 99, 62, 0.25)",
+              boxShadow: "0 4px 10px rgba(121, 85, 199, 0.25)",
             }}
           >
             L

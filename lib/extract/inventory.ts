@@ -5,6 +5,7 @@ export { INVENTORY_CATEGORIES, INVENTORY_UNITS } from "../inventory";
 export type InventoryRow = {
   category: InventoryCategory;
   particular: string;
+  remark: string;
   unit: string;
   in: string;
   out: string;
@@ -25,7 +26,7 @@ export function inventoryQuantity(value: string): number | null {
 
 export function inventoryPrompt(): string {
   return `Read this DAILY inventory sheet. Return ONLY JSON:
-{"date":"date on page or empty","sheetKind":"materials or fuel","rows":[{"category":"sand|gravel|cement|brick|fuel","particular":"exact product/brand or vehicle/supplier name","in":"source quantity or empty","out":"source quantity or empty","balance":"source quantity or empty"}]}
+{"date":"date on page or empty","sheetKind":"materials or fuel","rows":[{"category":"sand|gravel|cement|brick|fuel","particular":"exact product/brand or vehicle/supplier name","remark":"written remark or empty; never invent","in":"source quantity or empty","out":"source quantity or empty","balance":"source quantity or empty"}]}
 Materials sheet: keep every brand/variant (e.g. Cement D.R, Cement Alpha, Brick T.W, Brick one star) separate. Units are sand/gravel sud (source may say sub), cement bags, brick nos.
 Fuel sheet: category fuel for ALL rows including supplier receipts. Particular is vehicle, ship, machine or supplier. Units gal. Preserve physical row order: balances are one shared tank's RUNNING balance, not per-vehicle stock. Include final receipt rows.
 Copy each physical row ONCE. Preserve Myanmar text and numeric source strings. Do NOT calculate or invent missing amounts, opening stock, dates, names or brands. Blank/unclear cells = empty string; preserve explicit dashes. Do not treat faint erased writing as a readable value. Wrong document: rows empty. Never return old multi-day ledger data as a daily summary.`;
@@ -47,7 +48,7 @@ export function parseInventoryResponse(text: string): { data: InventoryData; con
         // Never silently drop an unclassified product from a replacement sheet.
         return { data: empty, confidence: 0, unreadable_fields: ["category"] };
       }
-      const row: InventoryRow = { category, particular: asText(r.particular), unit: INVENTORY_UNITS[category], in: asText(r.in), out: asText(r.out), balance: asText(r.balance), balance_ok: null };
+      const row: InventoryRow = { category, particular: asText(r.particular), remark: asText(r.remark), unit: INVENTORY_UNITS[category], in: asText(r.in), out: asText(r.out), balance: asText(r.balance), balance_ok: null };
       if (!row.particular) flags.push(`row_${index + 1}_particular`);
       for (const field of ["in", "out", "balance"] as const) {
         if ((row[field] && inventoryQuantity(row[field]) === null) || (field === "balance" && !row[field])) flags.push(`row_${index + 1}_${field}`);

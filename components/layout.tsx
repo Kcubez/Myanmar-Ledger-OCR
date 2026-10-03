@@ -28,16 +28,16 @@ import { useToast } from "./ToastProvider";
 const DRAWER_WIDTH = 250;
 
 const LINKS = [
-  { href: "/dashboard", label: "Overview", ico: "📊" },
-  { href: "/inventory", label: "Inventory", ico: "📦" },
-  { href: "/maintenance", label: "Maintenance", ico: "🔧" },
-  { href: "/revenue", label: "Revenue", ico: "💰" },
-  { href: "/expense", label: "Expense", ico: "💸" },
-  { href: "/approvals", label: "Approvals", ico: "✅" },
-  { href: "/settings", label: "Settings", ico: "⚙️" },
+  { href: "/dashboard", label: "Overview" },
+  { href: "/inventory", label: "Inventory" },
+  { href: "/maintenance", label: "Maintenance" },
+  { href: "/revenue", label: "Revenue" },
+  { href: "/expense", label: "Expense" },
+  { href: "/approvals", label: "Approvals" },
+  { href: "/settings", label: "Settings" },
 ];
 
-const ADMIN_LINKS = [{ href: "/admin/users", label: "Users", ico: "👥" }];
+const ADMIN_LINKS = [{ href: "/admin/users", label: "Users" }];
 
 const TONE_TEXT: Record<string, string> = {
   good: "var(--ok)",
@@ -130,16 +130,30 @@ export function Pill({ tone, children }: { tone: "good" | "warn" | "bad" | "pend
   return <Chip size="small" label={children} sx={{ fontWeight: 800, ...sx }} />;
 }
 
+export type StatIconName = "trend-up" | "trend-down" | "balance" | "calendar" | "list" | "clock" | "wrench";
+
+const STAT_ICON_PATHS: Record<StatIconName, string> = {
+  "trend-up": "M4 18V6 M4 18h16 M7 14l5-5 4 3 5-7",
+  "trend-down": "M4 6v12h16 M7 7l5 5 4-3 5 7",
+  balance: "M12 4v16 M8 20h8 M12 6L6 8m6-2l6 2 M7 12l-2.5 6a2.8 2.8 0 0 0 5 0L7 12 M17 12l-2.5 6a2.8 2.8 0 0 0 5 0L17 12",
+  calendar: "M5 5h14v15H5z M5 9.5h14 M9 3v4 M15 3v4",
+  list: "M9 6h11 M9 12h11 M9 18h11 M4.5 6h1 M4.5 12h1 M4.5 18h1",
+  clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18 M12 7v5l3 2",
+  wrench: "M14 5a5 5 0 0 0-6 6L3 16l5 5 5-5a5 5 0 0 0 6-6l-4 3-4-4z",
+};
+
 export function StatCard({
   label,
   value,
   sub,
   tone,
+  icon,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "good" | "bad" | "warn";
+  icon?: StatIconName;
 }) {
   return (
     <Card
@@ -156,12 +170,19 @@ export function StatCard({
       }}
     >
       <CardContent sx={{ p: { xs: "18px 14px", sm: "24px" }, "&:last-child": { pb: "24px" } }}>
-        <Typography
-          variant="caption"
-          sx={{ color: "var(--muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}
-        >
-          {label}
-        </Typography>
+        <span className="stat-label-row">
+          {icon && (
+            <span className="stat-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={STAT_ICON_PATHS[icon]} /></svg>
+            </span>
+          )}
+          <Typography
+            variant="caption"
+            sx={{ color: "var(--muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}
+          >
+            {label}
+          </Typography>
+        </span>
         <Typography
           variant="h5"
           component="b"

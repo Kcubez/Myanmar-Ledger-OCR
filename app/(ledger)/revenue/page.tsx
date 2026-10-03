@@ -1,3 +1,4 @@
+import { retryRead } from "../../../lib/read-retry";
 import { PaginatedTable } from "../../../components/PaginatedTable";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import { prisma } from "../../../lib/prisma";
@@ -33,14 +34,14 @@ export default async function RevenuePage({
 
   // CONFIRMED only — pending reports are reviewed in Approvals first.
   const confirmed = { status: "CONFIRMED" } as const;
-  const [lines, lineCount] = await Promise.all([
+  const [lines, lineCount] = await retryRead(() => prisma.$transaction([
     prisma.revenueLine.findMany({
       where: { report: { date: where, ...confirmed } },
-      orderBy: [{ report: { date: "asc" } }, { id: "asc" }],
+      orderBy: [{ report: { date: "desc" } }, { id: "asc" }],
       include: { report: { select: { date: true } } },
     }),
     prisma.revenueLine.count({ where: { report: { date: where, ...confirmed } } }),
-  ]);
+  ]));
 
   const byDay = new Map<string, { total: number; methods: Record<string, number>; count: number }>();
   for (const line of lines) {
@@ -55,7 +56,7 @@ export default async function RevenuePage({
     day.methods[line.method] = (day.methods[line.method] ?? 0) + amount;
     day.count += 1;
   }
-  const days = [...byDay.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+  const days = [...byDay.entries()].sort(([a], [b]) => (a < b ? 1 : -1));
   const total = days.reduce((s, [, day]) => s + day.total, 0);
   const byMethod = METHODS.map((method) => ({
     label: METHOD_LABELS[method],
@@ -66,7 +67,7 @@ export default async function RevenuePage({
     <>
       <PageHeader
         title="Revenue"
-        sub={`${range.label} · daily payment split · ${lineCount} lines`}
+        sub={`${range.label} · daily payment split`}
         actions={
           <>
             <DateFilter />
@@ -83,8 +84,8 @@ export default async function RevenuePage({
       />
 
       <section className="stats" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))" }} aria-label="Revenue totals">
-        <StatCard label="Total revenue" value={`${Math.round(total).toLocaleString()} Ks`} tone="good" />
-        <StatCard label="Days" value={`${days.length}`} sub={range.label} />
+        <StatCard label="Total revenue" value={`${Math.round(total).toLocaleString()} Ks`} sub={`${days.length} days · ${range.label}`} tone="good" icon="trend-up" />
+        <StatCard label="Days" value={`${days.length}`} sub={range.label} icon="calendar" />
       </section>
 
       <section className="card pad">
@@ -92,23 +93,22 @@ export default async function RevenuePage({
         {byMethod.length ? (
           <DonutChart slices={byMethod} />
         ) : (
-          <p className="muted">No revenue lines yet.</p>
+          <p className="chart-empty">No revenue lines yet.</p>
         )}
       </section>
 
       <section className="card pad" style={{ marginTop: 16 }}>
-        <h2>Daily revenue</h2>
         <div className="table-wrap ledger-list">
-          <PaginatedTable className="responsive-ledger" role="table">
+          <PaginatedTable searchable title="Daily revenue" searchPlaceholder="Search date or amount…" className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Total</th>
-                <th>Cash</th>
-                <th>KBZ Pay</th>
-                <th>MMQR</th>
-                <th>KBZ Sp</th>
-                <th>AYA Sp</th>
+                <th className="num">Total</th>
+                <th className="num">Cash</th>
+                <th className="num">KBZ Pay</th>
+                <th className="num">MMQR</th>
+                <th className="num">KBZ Sp</th>
+                <th className="num">AYA Sp</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -116,16 +116,16 @@ export default async function RevenuePage({
               {days.map(([key, day]) => (
                 <tr key={key}>
                   <td data-label="Date">{key}</td>
-                  <td data-label="Total">{Math.round(day.total).toLocaleString()}</td>
-                  <td data-label="Cash">{Math.round(day.methods.CASH ?? 0).toLocaleString()}</td>
-                  <td data-label="KBZ Pay">{Math.round(day.methods.KBZ_PAY ?? 0).toLocaleString()}</td>
-                  <td data-label="MMQR">{Math.round(day.methods.MMQR ?? 0).toLocaleString()}</td>
-                  <td data-label="KBZ Sp">{Math.round(day.methods.KBZ_SPECIAL ?? 0).toLocaleString()}</td>
-                  <td data-label="AYA Sp">{Math.round(day.methods.AYA_SPECIAL ?? 0).toLocaleString()}</td>
+                  <td data-label="Total" className="num">{Math.round(day.total).toLocaleString()}</td>
+                  <td data-label="Cash" className="num">{Math.round(day.methods.CASH ?? 0).toLocaleString()}</td>
+                  <td data-label="KBZ Pay" className="num">{Math.round(day.methods.KBZ_PAY ?? 0).toLocaleString()}</td>
+                  <td data-label="MMQR" className="num">{Math.round(day.methods.MMQR ?? 0).toLocaleString()}</td>
+                  <td data-label="KBZ Sp" className="num">{Math.round(day.methods.KBZ_SPECIAL ?? 0).toLocaleString()}</td>
+                  <td data-label="AYA Sp" className="num">{Math.round(day.methods.AYA_SPECIAL ?? 0).toLocaleString()}</td>
                   <td data-label="Action">
                     <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                       <QuickEditModal dateKey={key} kind="revenue" />
-                      <DeleteRangeButton
+                      <DeleteRangeButton inline
                         kind="revenue"
                         kindLabel="revenue"
                         count={day.count}

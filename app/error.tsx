@@ -12,7 +12,7 @@ export default function ErrorPage({ reset }: { error: Error & { digest?: string 
       <p role="alert">စာမျက်နှာကို ရယူမရပါ။ ပြန်လည်ကြိုးစားပေးပါ။</p>
       <p className="muted">If you just saved or deleted something, check the latest records before repeating the action.</p>
       <button disabled={pending} onClick={() => startTransition(() => { router.refresh(); reset(); })}>
-        {pending ? "Retrying…" : "Try again / ပြန်ကြိုးစားရန်"}
+        {pending ? "Retrying…" : "Try again"}
       </button>
     </main>
   );

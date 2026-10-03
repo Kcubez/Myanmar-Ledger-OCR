@@ -5,7 +5,7 @@ import { SettingsManager } from "../../../components/SettingsManager";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Settings — Ledger Dashboard",
+  title: "Settings - Ledger Dashboard",
 };
 
 export default async function SettingsPage() {

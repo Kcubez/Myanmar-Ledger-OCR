@@ -1,3 +1,4 @@
+import { retryRead } from "../../../lib/read-retry";
 import { PaginatedTable } from "../../../components/PaginatedTable";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import { prisma } from "../../../lib/prisma";
@@ -22,7 +23,7 @@ export default async function MaintenancePage({
 
   // CONFIRMED only — pending reports are reviewed in Approvals first.
   const confirmed = { status: "CONFIRMED" } as const;
-  const [byVehicle, recent, entryCount] = await Promise.all([
+  const [byVehicle, recent, entryCount] = await retryRead(() => prisma.$transaction([
     prisma.maintenanceLine.groupBy({
       by: ["vehicle"],
       where: { report: { date: where, ...confirmed } },
@@ -30,12 +31,12 @@ export default async function MaintenancePage({
     }),
     prisma.maintenanceLine.findMany({
       where: { report: { date: where, ...confirmed } },
-      orderBy: [{ report: { date: "asc" } }, { id: "asc" }],
+      orderBy: [{ report: { date: "desc" } }, { id: "asc" }],
 
       include: { report: { select: { date: true } } },
     }),
     prisma.maintenanceLine.count({ where: { report: { date: where, ...confirmed } } }),
-  ]);
+  ]));
 
   const totalSpend = byVehicle.reduce((s, row) => s + Number(row._sum.amount ?? 0), 0);
 
@@ -43,37 +44,36 @@ export default async function MaintenancePage({
     <>
       <PageHeader
         title="Maintenance"
-        sub={`${range.label} · spend per vehicle/ship · ${entryCount} lines`}
+        sub={`${range.label} · spend per vehicle`}
         actions={<><DateFilter /><DeleteRangeButton kind="maintenance" kindLabel="maintenance" count={entryCount} scopeLabel={range.label} gte={range.gte?.toISOString() ?? null} lte={range.lte?.toISOString() ?? null} /></>}
       />
 
       <section className="stats" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))" }} aria-label="Maintenance totals">
-        <StatCard label="Total spend" value={`${Math.round(totalSpend).toLocaleString()} Ks`} tone="bad" />
-        <StatCard label="Lines" value={`${entryCount}`} sub={range.label} />
+        <StatCard label="Total spend" value={`${Math.round(totalSpend).toLocaleString()} Ks`} sub={`${entryCount} lines · ${range.label}`} tone="bad" icon="wrench" />
+        <StatCard label="Lines" value={`${entryCount}`} sub={range.label} icon="list" />
       </section>
 
       <section className="card pad">
-        <h2>Spend per vehicle / ship (Ks)</h2>
+        <h2>Spend per vehicle (Ks)</h2>
         {byVehicle.length ? (
           <BarChart
             data={byVehicle.map((row) => ({ label: row.vehicle || "—", value: Number(row._sum.amount ?? 0) }))}
             color="#a63434"
           />
         ) : (
-          <p className="muted">No maintenance lines yet.</p>
+          <p className="chart-empty">No maintenance lines yet.</p>
         )}
       </section>
 
       <section className="card pad" style={{ marginTop: 16 }}>
-        <h2>Recent lines</h2>
         <div className="table-wrap ledger-list">
-          <PaginatedTable className="responsive-ledger" role="table">
+          <PaginatedTable searchable title="Recent lines" searchPlaceholder="Search vehicle, task, or date…" className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
                 <th>Vehicle name</th>
                 <th>Maintenance task</th>
-                <th>Amount</th>
+                <th className="num">Amount</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -85,7 +85,7 @@ export default async function MaintenancePage({
                     <td data-label="Date">{dateKey}</td>
                     <td data-label="Vehicle name">{row.vehicle || "—"}</td>
                     <td data-label="Maintenance task">{row.part || "—"}</td>
-                    <td data-label="Amount">{Number(row.amount).toLocaleString()}</td>
+                    <td data-label="Amount" className="num">{Number(row.amount).toLocaleString()}</td>
                     <td data-label="Action">
                       <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                         <RowEditModal dateKey={dateKey} kind="maintenance" rowId={row.id} />

@@ -13,7 +13,7 @@ export const appTheme = createTheme({
     error: { main: "#a63434", dark: "#7c2727", light: "#f7e5e5" },
     warning: { main: "#8a5b00", light: "#fff0cf" },
     background: { default: "#f7f6fb", paper: "#ffffff" },
-    text: { primary: "#252332", secondary: "#777383" },
+    text: { primary: "#252332", secondary: "#605c70" },
     divider: "#e9e6ef",
   },
   typography: {

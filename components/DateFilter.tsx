@@ -23,7 +23,8 @@ function isoDay(year: number, month: number, day: number): string {
 const selectStyle = {
   appearance: "none" as const,
   WebkitAppearance: "none" as const,
-  padding: "6px 26px 6px 10px",
+  padding: "9px 30px 9px 12px",
+  minHeight: 38,
   borderRadius: "8px",
   border: "1px solid var(--line)",
   backgroundColor: "#fff",
@@ -31,7 +32,7 @@ const selectStyle = {
   fontSize: "0.85rem",
   fontWeight: 600,
   cursor: "pointer",
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235f6f63' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23605c70' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
   backgroundRepeat: "no-repeat",
   backgroundPosition: "right 8px center",
   backgroundSize: "12px",
@@ -40,7 +41,8 @@ const selectStyle = {
 };
 
 const dateInputStyle = {
-  padding: "5px 9px",
+  padding: "8px 10px",
+  minHeight: 38,
   borderRadius: "8px",
   border: "1px solid var(--line)",
   backgroundColor: "#fff",
@@ -123,7 +125,7 @@ export function DateFilter() {
         alignItems: "center",
         gap: 1,
         flexWrap: "wrap",
-        bgcolor: isPending ? "rgba(240, 246, 241, 0.7)" : "#ffffff",
+        bgcolor: isPending ? "rgba(242, 238, 249, 0.7)" : "#ffffff",
         border: "1px solid",
         borderColor: isPending ? "var(--leaf)" : "var(--line)",
         borderRadius: "12px",
@@ -135,6 +137,7 @@ export function DateFilter() {
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
         <select
           aria-label="Period"
+          className="date-filter-select"
           value={mode}
           onChange={(e) => setMode(e.target.value as Mode)}
           style={selectStyle}
@@ -150,6 +153,7 @@ export function DateFilter() {
           <input
             type="date"
             aria-label="Day"
+            className="date-filter-input"
             value={isoDay(year, month, Math.min(day, new Date(year, month, 0).getDate()))}
             onChange={(e) => {
               const parts = e.target.value.split("-").map(Number);
@@ -164,6 +168,7 @@ export function DateFilter() {
         {mode === "month" && (
           <select
             aria-label="Month"
+            className="date-filter-select"
             value={String(month)}
             onChange={(e) => go({ month: e.target.value, day: undefined })}
             style={selectStyle}
@@ -179,6 +184,7 @@ export function DateFilter() {
         {mode !== "overall" && mode !== "custom" && (
           <select
             aria-label="Year"
+            className="date-filter-select"
             value={String(year)}
             onChange={(e) => go({ year: e.target.value })}
             style={selectStyle}
@@ -196,6 +202,7 @@ export function DateFilter() {
             <input
               type="date"
               aria-label="From date"
+              className="date-filter-input"
               value={from}
               max={to}
               onChange={(e) => {
@@ -209,6 +216,7 @@ export function DateFilter() {
             <input
               type="date"
               aria-label="To date"
+              className="date-filter-input"
               value={to}
               min={from}
               onChange={(e) => {
@@ -230,8 +238,8 @@ export function DateFilter() {
             px: 0.75,
             py: 0.25,
             borderRadius: "6px",
-            bgcolor: "var(--ok-bg)",
-            color: "var(--ok)",
+            bgcolor: "var(--soft)",
+            color: "var(--leaf)",
           }}
         >
           <CircularProgress size={12} color="inherit" thickness={5} />

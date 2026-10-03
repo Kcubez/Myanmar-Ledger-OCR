@@ -1,3 +1,4 @@
+import { retryRead } from "../../../lib/read-retry";
 import { PaginatedTable } from "../../../components/PaginatedTable";
 import { ExpenseWageDetails } from "../../../components/ExpenseWageDetails";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
@@ -27,14 +28,14 @@ export default async function ExpensePage({
 
   // CONFIRMED only — pending reports are reviewed in Approvals first.
   const confirmed = { status: "CONFIRMED" } as const;
-  const [lines, lineCount] = await Promise.all([
+  const [lines, lineCount] = await retryRead(() => prisma.$transaction([
     prisma.expenseLine.findMany({
       where: { report: { date: where, ...confirmed } },
-      orderBy: [{ report: { date: "asc" } }, { id: "asc" }],
+      orderBy: [{ report: { date: "desc" } }, { id: "asc" }],
       include: { report: { select: { date: true } } },
     }),
     prisma.expenseLine.count({ where: { report: { date: where, ...confirmed } } }),
-  ]);
+  ]));
 
   const byDay = new Map<string, { total: number; cats: Record<string, number>; wages: number; count: number }>();
   for (const line of lines) {
@@ -50,7 +51,7 @@ export default async function ExpensePage({
     if (line.category === "WAGES") day.wages += 1;
     day.count += 1;
   }
-  const days = [...byDay.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+  const days = [...byDay.entries()].sort(([a], [b]) => (a < b ? 1 : -1));
   const total = days.reduce((s, [, day]) => s + day.total, 0);
   const byCategory = CATEGORIES.map((cat) => ({
     label: cat.replace(/_/g, " "),
@@ -61,7 +62,7 @@ export default async function ExpensePage({
     <>
       <PageHeader
         title="Expense"
-        sub={`${range.label} · daily OPEX split · ${lineCount} lines`}
+        sub={`${range.label} · daily OPEX split`}
         actions={
           <>
             <DateFilter />
@@ -78,8 +79,8 @@ export default async function ExpensePage({
       />
 
       <section className="stats" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))" }} aria-label="Expense totals">
-        <StatCard label="Total expense" value={`${Math.round(total).toLocaleString()} Ks`} tone="bad" />
-        <StatCard label="Days" value={`${days.length}`} sub={range.label} />
+        <StatCard label="Total expense" value={`${Math.round(total).toLocaleString()} Ks`} sub={`${days.length} days · ${range.label}`} tone="bad" icon="trend-down" />
+        <StatCard label="Days" value={`${days.length}`} sub={range.label} icon="calendar" />
       </section>
 
       <section className="card pad">
@@ -87,22 +88,21 @@ export default async function ExpensePage({
         {byCategory.length ? (
           <BarChart data={byCategory} color="#a63434" />
         ) : (
-          <p className="muted">No expense lines yet.</p>
+          <p className="chart-empty">No expense lines yet.</p>
         )}
       </section>
 
       <section className="card pad" style={{ marginTop: 16 }}>
-        <h2>Daily expense</h2>
         <div className="table-wrap ledger-list">
-          <PaginatedTable className="responsive-ledger" role="table">
+          <PaginatedTable searchable title="Daily expense" searchPlaceholder="Search date or amount…" className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Total</th>
-                <th>Business</th>
-                <th>Personal</th>
-                <th>Operation</th>
-                <th>Wages</th>
+                <th className="num">Total</th>
+                <th className="num">Business</th>
+                <th className="num">Personal</th>
+                <th className="num">Operation</th>
+                <th className="num">Wages</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -110,15 +110,15 @@ export default async function ExpensePage({
               {days.map(([key, day]) => (
                 <tr key={key}>
                   <td data-label="Date">{key}</td>
-                  <td data-label="Total">{Math.round(day.total).toLocaleString()}</td>
-                  <td data-label="Business">{Math.round(day.cats.BUSINESS_DRAWING ?? 0).toLocaleString()}</td>
-                  <td data-label="Personal">{Math.round(day.cats.PERSONAL_DRAWING ?? 0).toLocaleString()}</td>
-                  <td data-label="Operation">{Math.round(day.cats.OPERATION ?? 0).toLocaleString()}</td>
-                  <td data-label="Wages">{day.wages === 0 ? "—" : `${day.wages} rows · ${Math.round(day.cats.WAGES ?? 0).toLocaleString()}`}</td>
+                  <td data-label="Total" className="num">{Math.round(day.total).toLocaleString()}</td>
+                  <td data-label="Business" className="num">{Math.round(day.cats.BUSINESS_DRAWING ?? 0).toLocaleString()}</td>
+                  <td data-label="Personal" className="num">{Math.round(day.cats.PERSONAL_DRAWING ?? 0).toLocaleString()}</td>
+                  <td data-label="Operation" className="num">{Math.round(day.cats.OPERATION ?? 0).toLocaleString()}</td>
+                  <td data-label="Wages" className="num">{day.wages === 0 ? "—" : `${day.wages} rows · ${Math.round(day.cats.WAGES ?? 0).toLocaleString()}`}</td>
                   <td data-label="Action">
                     <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                       <QuickEditModal dateKey={key} kind="expense" />
-                      <DeleteRangeButton
+                      <DeleteRangeButton inline
                         kind="expense"
                         kindLabel="expense"
                         count={day.count}

@@ -105,7 +105,7 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
 
   return (
     <>
-      <button type="button" className="secondary" style={{ padding: "4px 10px" }} onClick={load}>
+      <button type="button" className="row-action" onClick={load}>
         Edit
       </button>
       <Modal
@@ -147,7 +147,7 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
                     ))}
               {kind === "expense" && (
                 <p className="muted" style={{ margin: "4px 0 0", fontSize: ".8rem" }}>
-                  Wages rows pass through unchanged — edit them in the Approvals queue.
+                  Edit individual wages in Wages details below.
                 </p>
               )}
             </div>
@@ -272,7 +272,7 @@ export function RowEditModal({
 
   return (
     <>
-      <button type="button" className="secondary" style={{ padding: "4px 10px" }} onClick={load}>
+      <button type="button" className="row-action" onClick={load}>
         Edit
       </button>
       <Modal

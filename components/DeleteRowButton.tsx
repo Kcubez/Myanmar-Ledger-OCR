@@ -33,17 +33,17 @@ export function DeleteRowButton({ deleteUrl, label }: { deleteUrl: string; label
     <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
       <button
         type="button"
-        className="delete"
+        className="row-action row-action-danger"
         aria-label={`Delete ${label}`}
         disabled={busy}
         onClick={() => setConfirming(true)}
       >
-        ×
+        Delete
       </button>
       <Modal
         open={confirming}
         title={`Delete this ${label}?`}
-        body="This cannot be undone. Source photos are kept."
+        body="This cannot be undone. Original photos remain in Telegram."
         confirmLabel="Delete"
         danger
         busy={busy}

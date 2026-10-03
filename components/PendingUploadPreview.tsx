@@ -9,10 +9,10 @@ export function PendingUploadPreview({ id, reportId, date, mode, payload }: {
   const expense = !Array.isArray(payload.lines) && payload.lines && typeof payload.lines === "object"
     ? payload.lines as { header?: Record<string, unknown>; wages?: Record<string, unknown>[] } : null;
   type Column = { key: string; label: string };
-  const labels: Record<string, string> = { date: "Date", category: "Category", particular: "Particular", in: "In", out: "Out", balance: "Balance", unit: "Unit", method: "Method", name: "Name", amount: "Amount", vehicle: "Vehicle name", part: "Maintenance task" };
+  const labels: Record<string, string> = { remark: "Remark", date: "Date", category: "Category", particular: "Particular", in: "In", out: "Out", balance: "Balance", unit: "Unit", method: "Method", name: "Name", amount: "Amount", vehicle: "Vehicle name", part: "Maintenance task" };
   const columnsFor = (keys: string[]): Column[] => keys.map(key => ({ key, label: labels[key] ?? key.replace(/_/g, " ") }));
   const withDate = (items: Record<string, unknown>[]) => items.map(row => ({ ...row, date }));
-  const ordered = mode === "inventory" ? ["date", "category", "particular", "in", "out", "balance", "unit"]
+  const ordered = mode === "inventory" ? ["date", "category", "particular", "in", "out", "balance", "unit", "remark"]
     : mode === "revenue" ? ["date", "method", "amount"]
     : mode === "maintenance" ? ["date", "vehicle", "part", "amount"] : null;
   const sections: { title: string; rows: Record<string, unknown>[]; columns: Column[] }[] = expense

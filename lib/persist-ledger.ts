@@ -37,7 +37,7 @@ export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, e
       const sheetKind = parsed.data.sheetKind;
       await tx.inventoryEntry.deleteMany({ where: { reportId, sheetKind } });
       await tx.inventoryEntry.createMany({ data: parsed.data.rows.map((row, position) => ({
-        reportId, sheetKind, position, category: row.category, particular: row.particular,
+        reportId, sheetKind, position, category: row.category, particular: row.particular, remark: row.remark || null,
         unit: row.unit, quantityIn: inventoryQuantity(row.in), quantityOut: inventoryQuantity(row.out),
         balance: inventoryQuantity(row.balance), balanceOk: row.balance_ok,
       })) });

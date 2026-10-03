@@ -82,7 +82,7 @@ export function Modal({
         <Button
           onClick={onCancel}
           disabled={busy}
-          sx={{ bgcolor: "var(--soft)", color: "var(--leaf)", "&:hover": { bgcolor: "#e4ede6" } }}
+          sx={{ bgcolor: "var(--soft)", color: "var(--leaf)", "&:hover": { bgcolor: "primary.light" } }}
         >
           {cancelLabel}
         </Button>

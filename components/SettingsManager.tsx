@@ -222,11 +222,11 @@ export function SettingsManager() {
           )}
           <div className="auth-form" style={{ maxWidth: 520 }}>
             <label className="muted">
-              Bot token <small>(BotFather — paste to replace)</small>
+              Bot token
               <input
                 value={tokenDraft ?? ""}
                 onChange={(e) => setTokenDraft(e.target.value)}
-                placeholder={settings?.botToken ? `${settings.botToken} — paste to replace` : "123456:ABC-..."}
+                placeholder={settings?.botToken ? `${settings.botToken} - paste to replace` : "123456:ABC-..."}
                 autoComplete="off"
               />
             </label>

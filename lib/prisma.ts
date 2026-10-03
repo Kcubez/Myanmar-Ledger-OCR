@@ -16,7 +16,6 @@ const pool =
     max: 5,
     keepAlive: true,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
   });
 
 // Handle unexpected idle client disconnections so they don't crash or hang the process

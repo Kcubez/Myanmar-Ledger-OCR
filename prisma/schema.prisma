@@ -316,6 +316,7 @@ model InventoryEntry {
   position Int
   category String
   particular String
+  remark String?
   unit String
   quantityIn Decimal? @db.Decimal(14, 3) @map("quantity_in")
   quantityOut Decimal? @db.Decimal(14, 3) @map("quantity_out")

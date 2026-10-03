@@ -1,7 +1,6 @@
 import { retryRead } from "../../../lib/read-retry";
 import { PaginatedTable } from "../../../components/PaginatedTable";
 import { legacyPendingWhere } from "../../../lib/pending-uploads";
-import { ExpenseWageDetails } from "../../../components/ExpenseWageDetails";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
@@ -12,7 +11,8 @@ import { TrendChart, DonutChart, BarChart } from "../../../components/charts";
 
 export const dynamic = "force-dynamic";
 
-const dayLabel = (d: Date) => `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 
 export default async function DashboardPage({
   searchParams,
@@ -27,7 +27,7 @@ export default async function DashboardPage({
   // in Approvals until reviewed. The pending card + review button below are
   // the pointer there.
   const confirmed = { status: "CONFIRMED" } as const;
-  const [reportRows, revenueAgg, expenseAgg, legacyCount, uploadCount, wageLines] = await retryRead(() => prisma.$transaction([
+  const [reportRows, revenueAgg, expenseAgg, legacyCount, uploadCount] = await retryRead(() => prisma.$transaction([
     prisma.dailyReport.findMany({
       where: { date: where, ...confirmed },
       orderBy: { date: "asc" },
@@ -49,11 +49,7 @@ export default async function DashboardPage({
     }),
     prisma.dailyReport.count({ where: legacyPendingWhere }),
     prisma.pendingUpload.count({ where: { status: "PENDING" } }),
-    prisma.expenseLine.findMany({
-      where: { category: "WAGES", report: { date: where, ...confirmed } },
-      include: { report: { select: { date: true } } },
-      orderBy: [{ report: { date: "desc" } }, { id: "asc" }],
-    }),
+
   ]));
 
   const pendingCount = legacyCount + uploadCount;
@@ -96,41 +92,41 @@ export default async function DashboardPage({
       />
 
       <section className="stats" aria-label="Key totals">
-        <StatCard label="Revenue" value={`${totalRevenue.toLocaleString()}`} sub={`Ks · ${range.label}`} tone="good" />
-        <StatCard label="Expense" value={`${totalExpense.toLocaleString()}`} sub={`Ks · ${range.label}`} tone="bad" />
+        <StatCard label="Revenue" value={`${totalRevenue.toLocaleString()}`} sub={`Ks · ${range.label}`} tone="good" icon="trend-up" />
+        <StatCard label="Expense" value={`${totalExpense.toLocaleString()}`} sub={`Ks · ${range.label}`} tone="bad" icon="trend-down" />
         <StatCard
           label="Net"
           value={`${net.toLocaleString()}`}
           sub="Ks · revenue − expense"
           tone={net >= 0 ? "good" : "bad"}
+          icon="balance"
         />
         {pendingCount > 0 ? (
           <Link href="/approvals" className="stat-link" aria-label={`Review ${pendingCount} pending reports`}>
-            <StatCard label="Pending" value={`${pendingCount}`} sub="awaiting approval — tap to review" tone="warn" />
+            <StatCard label="Pending" value={`${pendingCount}`} sub="awaiting approval - tap to review" tone="warn" icon="clock" />
           </Link>
         ) : (
-          <StatCard label="Pending" value="0" sub="all caught up" />
+          <StatCard label="Pending" value="0" sub="all caught up" icon="clock" />
         )}
       </section>
 
       <div className="dashboard-charts">
         <section className="card pad dashboard-trend">
-          <p className="section-eyebrow">Trend</p>
+
           <h2>Revenue vs expense</h2>
           {reports.length ? (
             <TrendChart
               data={reports.map((r) => ({
-                label: dayLabel(r.date),
+                label: r.date.toISOString().slice(0, 10),
                 a: Number(r.totalRevenue),
                 b: Number(r.totalExpense),
               }))}
             />
           ) : (
-            <p className="muted">No reports yet — submit photos via Telegram.</p>
+            <p className="muted">No reports yet - submit photos via Telegram.</p>
           )}
         </section>
         <section className="card pad dashboard-payment">
-          <p className="section-eyebrow">Mix</p>
           <h2>Revenue by payment</h2>
           {revenueAgg.length ? (
             <DonutChart
@@ -140,30 +136,29 @@ export default async function DashboardPage({
               }))}
             />
           ) : (
-            <p className="muted">No revenue lines yet.</p>
+            <p className="chart-empty">No revenue lines yet.</p>
           )}
         </section>
 
       <section className="card pad dashboard-expense">
-        <p className="section-eyebrow">Breakdown</p>
         <h2>Expense by category</h2>
-        <p className="chart-meta">Amount · Ks · Highest first</p>
+        <p className="chart-meta">Amount · Ks</p>
         {expenseAgg.length ? (
           <BarChart
             data={expenseAgg.map((row) => ({ label: row.category.replace(/_/g, " "), value: Number(row._sum.amount ?? 0) }))}
             color="#a63434"
           />
         ) : (
-          <p className="muted">No expense lines yet.</p>
+          <p className="chart-empty">No expense lines yet.</p>
         )}
       </section>
 
       </div>
 
-      <ExpenseWageDetails lines={wageLines} />
+
 
       <section className="card pad">
-        <p className="section-eyebrow">History</p>
+
         <h2>Recent reports</h2>
         <div className="table-wrap ledger-list">
           <PaginatedTable className="responsive-ledger" role="table">
@@ -182,7 +177,7 @@ export default async function DashboardPage({
                 .reverse()
                 .map((r) => (
                   <tr key={r.id}>
-                    <td data-label="Date">{dayLabel(r.date)}</td>
+                    <td data-label="Date">{r.date.toISOString().slice(0, 10)}</td>
                     <td data-label="Status">
                       <StatusPill status={r.status} />
                     </td>

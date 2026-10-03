@@ -156,13 +156,13 @@ export function SetupForm() {
           fontSize: "0.98rem",
           fontWeight: 700,
           textTransform: "none",
-          boxShadow: "0 4px 14px rgba(33, 99, 62, 0.25)",
+          boxShadow: "0 4px 14px rgba(121, 85, 199, 0.25)",
           "&:hover": {
-            bgcolor: "#17452b",
-            boxShadow: "0 6px 18px rgba(33, 99, 62, 0.35)",
+            bgcolor: "primary.dark",
+            boxShadow: "0 6px 18px rgba(121, 85, 199, 0.35)",
           },
           "&.Mui-disabled": {
-            bgcolor: "rgba(33, 99, 62, 0.6)",
+            bgcolor: "rgba(121, 85, 199, 0.6)",
             color: "rgba(255, 255, 255, 0.8)",
           },
         }}
