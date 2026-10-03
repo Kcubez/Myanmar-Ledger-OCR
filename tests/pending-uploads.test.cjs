@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
-function fixture({ fail = false, legacy = 0, newer = 0, mode = "expense", sheetKind = "fuel" } = {}) {
+function fixture({ fail = false, legacy = 0, newer = 0, mode = "expense", sheetKind = "fuel", submitted = true } = {}) {
   let state = { total: 100, status: 'CONFIRMED', upload: 'PENDING', writes: 0 };
   const prisma = { async $transaction(run) {
     const draft = { ...state };
@@ -14,7 +14,7 @@ function fixture({ fail = false, legacy = 0, newer = 0, mode = "expense", sheetK
         async update({data}) { draft.upload = data.status; },
       },
       dailyReport: { async count() { return legacy; }, async update({data}) { draft.status = data.status; } },
-      telegramMessage: { async update() { if (fail) throw new Error('write failed'); } },
+      telegramMessage: { async findUnique() { return { status: submitted ? 'approval_requested' : 'extracted' }; }, async update() { if (fail) throw new Error('write failed'); } },
       draft,
     });
     state = draft;
@@ -33,6 +33,7 @@ test('approved values stay live until explicit upload approval',async()=>{const 
 test('rejecting new upload preserves approved data',async()=>{const f=fixture();await f.act(false);assert.equal(f.state().total,100);assert.equal(f.state().writes,0);assert.equal(f.state().upload,'REJECTED');});
 test('approval rollback preserves old totals',async()=>{const f=fixture({fail:true});await assert.rejects(f.act(true),/write failed/);assert.equal(f.state().total,100);assert.equal(f.state().upload,'PENDING');});
 test('repeat approval cannot apply twice',async()=>{const f=fixture();await f.act(true);await assert.rejects(f.act(true),/already reviewed/);assert.equal(f.state().writes,1);});
+test('an old PENDING upload cannot bypass the submitter confirmation',async()=>{const f=fixture({submitted:false});await assert.rejects(f.act(true),/not submitted/);assert.equal(f.state().writes,0);});
 test('older replacement cannot overwrite a newer approved version',async()=>{const f=fixture({newer:1});await assert.rejects(f.act(true),/newer upload/);assert.equal(f.state().total,100);});
 test('legacy pending data must be reviewed explicitly first',async()=>{const f=fixture({legacy:1});await assert.rejects(f.act(true),/existing pending report/);assert.equal(f.state().total,100);});
 

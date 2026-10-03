@@ -3,13 +3,13 @@ import { prisma } from "../../../../lib/prisma";
 import { requireOwner } from "../../../../lib/require-owner";
 import { parseDateParam } from "../../../../lib/reports";
 import { extractContentDate } from "../../../../lib/report-date";
-import { finalizeReportMessages } from "../../../../lib/telegram/notify";
+import { editableRelations, reportRevision } from "../../../../lib/report-revision";
+import { validateReportPatch } from "../../../../lib/report-patch-validation";
 
 export const dynamic = "force-dynamic";
 
 const REVENUE_METHODS = ["CASH", "KBZ_PAY", "MMQR", "KBZ_SPECIAL", "AYA_SPECIAL"] as const;
 const EXPENSE_CATEGORIES = ["BUSINESS_DRAWING", "PERSONAL_DRAWING", "OPERATION", "WAGES"] as const;
-const STATUSES = ["PENDING", "CONFIRMED", "NEEDS_REVIEW"] as const;
 
 type Ctx = { params: Promise<{ date: string }> };
 
@@ -43,7 +43,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   if (!report) return NextResponse.json({ message: "Not found" }, { status: 404 });
   return NextResponse.json({
     report: JSON.parse(
-      JSON.stringify(report, (_key, value) => (typeof value === "bigint" ? Number(value) : value)),
+      JSON.stringify({ ...report, revision: reportRevision(report) }, (_key, value) => (typeof value === "bigint" ? Number(value) : value)),
     ),
   });
 }
@@ -53,20 +53,26 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 // All-or-nothing via $transaction: a crash mid-replace must never leave
 // deleted-but-not-reinserted lines behind.
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  const { error, session } = await requireOwner(req);
+  const { error } = await requireOwner(req);
   if (error) return error;
   const date = parseDateParam((await ctx.params).date);
   if (!date) return NextResponse.json({ message: "Invalid date (yyyy-mm-dd)" }, { status: 400 });
   const report = await prisma.dailyReport.findUnique({ where: { date } });
   if (!report) return NextResponse.json({ message: "Not found" }, { status: 404 });
 
-  const body = (await req.json()) as Record<string, unknown>;
+  let body: Record<string, unknown>;
+  try {
+    const input: unknown = await req.json();
+    validateReportPatch(input);
+    body = input;
+  } catch (cause) {
+    return NextResponse.json({ message: cause instanceof Error ? cause.message : "Invalid edit." }, { status: 400 });
+  }
   const reportId = report.id;
-  const status = typeof body.status === "string" && (STATUSES as readonly string[]).includes(body.status)
-    ? (body.status as (typeof STATUSES)[number])
-    : undefined;
-
+  try {
   const updated = await prisma.$transaction(async (tx) => {
+    const current = await tx.dailyReport.findUnique({ where: { id: reportId }, include: editableRelations });
+    if (!current || reportRevision(current) !== body.expectedRevision) throw new Error("STALE_REPORT");
     if (Array.isArray(body.revenue)) {
       const rows = (body.revenue as { method?: string; amount?: unknown }[]).filter((row) =>
         (REVENUE_METHODS as readonly string[]).includes(row.method ?? ""),
@@ -167,32 +173,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         totalExpense: expense._sum.amount ?? BigInt(0),
         totalFuelIn: fuel._sum.inGal ?? 0,
         totalFuelOut: fuel._sum.outGal ?? 0,
-        ...(status ? { status } : {}),
       },
     });
-    if (status) {
-      await tx.telegramMessage.updateMany({
-        where: { reportId },
-        data: { status: status === "CONFIRMED" ? "confirmed" : status === "NEEDS_REVIEW" ? "rejected" : "extracted" },
-      });
-    }
     return next;
-  });
-
-  // Status changes from the editor resolve stale Telegram notes too, same as /api/approvals.
-  // Awaited: fire-and-forget risks the runtime freezing before Telegram is called.
-  let telegramUpdated = true;
-  if (status && (status === "CONFIRMED" || status === "NEEDS_REVIEW")) {
-    try {
-      await finalizeReportMessages({ ownerUserId: session.user.id, reportId, approved: status === "CONFIRMED" });
-    } catch (notifyError) {
-      console.error("Editor approval Telegram notify failed:", notifyError);
-      telegramUpdated = false;
-    }
-  }
+  }, { isolationLevel: "Serializable" });
 
   return NextResponse.json({
     report: JSON.parse(JSON.stringify(updated, (_key, value) => (typeof value === "bigint" ? Number(value) : value))),
-    telegramUpdated,
   });
+  } catch (cause) {
+    if ((cause instanceof Error && cause.message === "STALE_REPORT") || (cause as { code?: string })?.code === "P2034") {
+      return NextResponse.json({ message: "This report changed while you were editing. Close and reopen the editor to load the latest data." }, { status: 409 });
+    }
+    throw cause;
+  }
 }

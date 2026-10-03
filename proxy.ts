@@ -3,7 +3,7 @@ import { getSessionCookie } from "better-auth/cookies";
 
 // Load-bearing guard: everything except these paths requires a session.
 // Keep /api/telegram/* public — the bot authenticates via webhook secret header.
-const PUBLIC_PATHS = ["/login", "/admin/login", "/api/auth", "/setup", "/api/setup", "/api/telegram"];
+const PUBLIC_PATHS = ["/login", "/admin/login", "/api/auth", "/api/telegram"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

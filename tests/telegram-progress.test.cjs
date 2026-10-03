@@ -13,7 +13,7 @@ function load(start,end,globals){
 test('submit keeps a persistent waiting message with no submit button',async()=>{
  const edits=[];
  const run=load('async function handleSubmitterConfirm(',null,{
- prisma:{dailyReport:{findUnique:async()=>({status:'CONFIRMED',telegramMessages:[{id:'upload',chatId:'7',botReplyMessageId:12}]})},pendingUpload:{findUnique:async()=>({status:'PENDING'})},telegramMessage:{update:async()=>{}}},
+ prisma:{dailyReport:{findUnique:async()=>({status:'CONFIRMED',telegramMessages:[{id:'upload',chatId:'7',botReplyMessageId:12}]})},pendingUpload:{findUnique:async()=>({id:'upload',status:'PENDING'})},telegramMessage:{update:async()=>{}}, $transaction:async run=>run({pendingUpload:{findUnique:async()=>({id:'upload',status:'DRAFT'}),update:async()=>{}},telegramMessage:{findUnique:async()=>({status:'extracted'}),update:async()=>{}}})},
  waitingForApprovalMessage:'Waiting for dashboard approval',
  editTelegramMessage:async args=>{edits.push(args);return true;},answerCallbackQuery:async()=>{},
  });

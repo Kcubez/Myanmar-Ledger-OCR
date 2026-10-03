@@ -11,7 +11,7 @@
 ## Setup (local)
 1. `cp .env.local.example .env.local`, fill server-only vars (`DATABASE_URL/DIRECT_URL`, `SUPABASE_*`, `TELEGRAM_BOT_TOKEN/WEBHOOK_SECRET`, `GEMINI_API_KEYS`, `BETTER_AUTH_SECRET`, `BREVO_*`). Never add keys to `NEXT_PUBLIC_`.
 2. `npm install && npx prisma generate && npx prisma db push && npm run dev`.
-3. Open `/setup`, create first admin (locks after). Set bot token + webhook secret, register Telegram webhook to `/api/telegram/webhook`.
+3. Sign in with the existing admin account; create user accounts from `/admin/users`. The setup route is retired. Set bot token + webhook secret, register Telegram webhook to `/api/telegram/webhook`.
 4. Pre-register staff in `/admin` (email + allowedLedgers + approver flag); staff runs `/link` + OTP in Telegram.
 
 ## Common tasks

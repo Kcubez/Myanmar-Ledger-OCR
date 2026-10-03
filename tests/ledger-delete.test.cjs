@@ -41,6 +41,7 @@ function fixture({ failUpdate = false, unauthorized = false } = {}) {
   const sandbox = { exports: {}, require(name) {
     if (name === 'next/server') return { NextResponse: { json: (body, options) => ({ body, status: options?.status ?? 200 }) } };
     if (name.endsWith('/date-filter')) return dates.exports;
+    if (name.endsWith('/inventory-scope')) return require('./load-ts.cjs')('lib/inventory-scope.ts');
     if (name.endsWith('/prisma')) return { prisma };
     if (name.endsWith('/require-owner')) return { requireOwner: async () => unauthorized ? { error: { status: 401 } } : {} };
     throw new Error(`Unexpected module: ${name}`);
@@ -106,4 +107,11 @@ test('invalid category cannot silently expand deletion to every product', async 
   const f = fixture();
   assert.equal((await f.invoke({ kind: 'inventory', category: 'unknown' })).status, 400);
   assert.equal(f.transactions(), 0);
+});
+test('variant deletion uses the same product, particular, and unit scope', async () => {
+  const f=fixture();
+  assert.equal((await f.invoke({kind:'inventory',category:'cement',variant:JSON.stringify(['cement','Alpha','bags'])})).status,200);
+  assert.equal(f.deletedWhere().particular,'Alpha');
+  assert.equal(f.deletedWhere().unit,'bags');
+  const invalid=fixture();assert.equal((await invalid.invoke({kind:'inventory',variant:'invalid'})).status,400);assert.equal(invalid.transactions(),0);
 });

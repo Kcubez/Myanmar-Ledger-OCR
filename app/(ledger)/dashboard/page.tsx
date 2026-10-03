@@ -1,6 +1,8 @@
+import { tableRequest, clampPage } from "../../../lib/table-page";
 import { retryRead } from "../../../lib/read-retry";
+import { formatDMY } from "../../../lib/format";
 import { PaginatedTable } from "../../../components/PaginatedTable";
-import { legacyPendingWhere } from "../../../lib/pending-uploads";
+import { legacyPendingWhere, pendingReviewWhere } from "../../../lib/pending-uploads";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
@@ -20,22 +22,25 @@ export default async function DashboardPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await ownerPageOrRedirect();
-  const range = parseDateFilter(await searchParams);
+  const params = await searchParams;
+  const range = parseDateFilter(params);
   const where = rangeWhere(range);
 
   // Dashboards show CONFIRMED data only — PENDING/NEEDS_REVIEW reports live
   // in Approvals until reviewed. The pending card + review button below are
   // the pointer there.
   const confirmed = { status: "CONFIRMED" } as const;
+  const request = tableRequest(params);
+  const reportWhere = { date: where, ...confirmed, OR: [{ revenueLines: { some: {} } }, { expenseLines: { some: {} } }, { maintenanceLines: { some: {} } }, { inventoryEntries: { some: {} } }, { fuelEntries: { some: {} } }, { brickEntries: { some: {} } }] };
+  const totalReports = await prisma.dailyReport.count({ where: reportWhere });
+  const page = clampPage(request.page, totalReports);
+  const recent = await prisma.dailyReport.findMany({ where: reportWhere, orderBy: { date: "desc" }, skip: (page - 1) * 10, take: 10, include: { _count: { select: { inventoryEntries: true } } } });
+  const uploadWhere = await pendingReviewWhere();
   const [reportRows, revenueAgg, expenseAgg, legacyCount, uploadCount] = await retryRead(() => prisma.$transaction([
     prisma.dailyReport.findMany({
-      where: { date: where, ...confirmed },
+      where: reportWhere,
       orderBy: { date: "asc" },
-      include: {
-        _count: {
-          select: { revenueLines: true, expenseLines: true, maintenanceLines: true, fuelEntries: true, brickEntries: true, inventoryEntries: true },
-        },
-      },
+      select: { date: true, totalRevenue: true, totalExpense: true },
     }),
     prisma.revenueLine.groupBy({
       by: ["method"],
@@ -48,7 +53,7 @@ export default async function DashboardPage({
       _sum: { amount: true },
     }),
     prisma.dailyReport.count({ where: legacyPendingWhere }),
-    prisma.pendingUpload.count({ where: { status: "PENDING" } }),
+    prisma.pendingUpload.count({ where: uploadWhere }),
 
   ]));
 
@@ -56,12 +61,7 @@ export default async function DashboardPage({
 
   // Days whose lines were all deleted vanish from the dashboard (stats,
   // trend, and Recent table stay consistent — one filtered array).
-  const reports = reportRows.filter((report) => {
-    const counts = report._count;
-    return (
-      counts.revenueLines + counts.expenseLines + counts.maintenanceLines + counts.fuelEntries + counts.brickEntries + counts.inventoryEntries > 0
-    );
-  });
+  const reports = reportRows;
   const totalRevenue = reports.reduce((s, r) => s + Number(r.totalRevenue), 0);
   const totalExpense = reports.reduce((s, r) => s + Number(r.totalExpense), 0);
   const net = totalRevenue - totalExpense;
@@ -161,7 +161,7 @@ export default async function DashboardPage({
 
         <h2>Recent reports</h2>
         <div className="table-wrap ledger-list">
-          <PaginatedTable className="responsive-ledger" role="table">
+          <PaginatedTable pagination={{ page, total: totalReports, query: "" }} className="responsive-ledger" role="table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -172,12 +172,10 @@ export default async function DashboardPage({
               </tr>
             </thead>
             <tbody>
-              {reports
-                .slice()
-                .reverse()
+              {recent
                 .map((r) => (
                   <tr key={r.id}>
-                    <td data-label="Date">{r.date.toISOString().slice(0, 10)}</td>
+                    <td data-label="Date" data-iso={r.date.toISOString().slice(0, 10)}>{formatDMY(r.date.toISOString().slice(0, 10))}</td>
                     <td data-label="Status">
                       <StatusPill status={r.status} />
                     </td>

@@ -3,6 +3,7 @@ import { prisma } from "../../../lib/prisma";
 import { requireOwner } from "../../../lib/require-owner";
 
 import { entryDateWhere } from "../../../lib/date-filter";
+import { inventoryScope } from "../../../lib/inventory-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function DELETE(req: NextRequest) {
   const guard = await requireOwner(req);
   if (guard.error) return guard.error;
 
-  const body = (await req.json().catch(() => ({}))) as { kind?: string; gte?: string | null; lte?: string | null; category?: string };
+  const body = (await req.json().catch(() => ({}))) as { kind?: string; gte?: string | null; lte?: string | null; category?: string; variant?: string };
   if (body.kind !== "fuel" && body.kind !== "brick" && body.kind !== "revenue" && body.kind !== "expense" && body.kind !== "inventory" && body.kind !== "maintenance") {
     return NextResponse.json({ message: "Invalid ledger kind." }, { status: 400 });
   }
@@ -23,6 +24,13 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ message: "Invalid inventory category." }, { status: 400 });
   }
   const gte = body.gte ? new Date(body.gte) : null;
+  let inventoryWhere = {};
+  try {
+    if (body.variant !== undefined && (body.kind !== "inventory" || typeof body.variant !== "string")) throw new Error("Invalid variant.");
+    inventoryWhere = inventoryScope(body.category, body.variant);
+  } catch {
+    return NextResponse.json({ message: "Invalid inventory filter." }, { status: 400 });
+  }
   const lte = body.lte ? new Date(body.lte) : null;
   if ((gte && Number.isNaN(gte.getTime())) || (lte && Number.isNaN(lte.getTime()))) {
     return NextResponse.json({ message: "Invalid gte/lte." }, { status: 400 });
@@ -66,7 +74,7 @@ export async function DELETE(req: NextRequest) {
       } else if (body.kind === "brick") {
         deleted = (await tx.brickEntry.deleteMany({ where: rowWhere })).count;
       } else if (body.kind === "inventory") {
-        deleted = (await tx.inventoryEntry.deleteMany({ where: { reportId: { in: ids }, ...(body.category ? { category: body.category } : {}) } })).count;
+        deleted = (await tx.inventoryEntry.deleteMany({ where: { reportId: { in: ids }, ...inventoryWhere } })).count;
       } else if (body.kind === "maintenance") {
         deleted = (await tx.maintenanceLine.deleteMany({ where: { reportId: { in: ids } } })).count;
       } else if (body.kind === "revenue") {

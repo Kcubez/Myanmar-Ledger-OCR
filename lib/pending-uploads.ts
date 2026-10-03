@@ -2,6 +2,13 @@ import { prisma } from "./prisma";
 import { persistLines, type ExtractedPayload } from "./persist-ledger";
 import { isLedgerType } from "./extract";
 
+// Old staged uploads also used PENDING. The submitter message is the explicit
+// submit marker, so those uploads cannot bypass Submit for review either.
+export async function pendingReviewWhere() {
+  const messages = await prisma.telegramMessage.findMany({ where: { status: "approval_requested" }, select: { id: true } });
+  return { status: "PENDING", id: { in: messages.map(message => message.id) } };
+}
+
 export const legacyPendingWhere = {
   status: { in: ["PENDING", "NEEDS_REVIEW"] as ("PENDING" | "NEEDS_REVIEW")[] },
   OR: [{ revenueLines: { some: {} } }, { expenseLines: { some: {} } }, { maintenanceLines: { some: {} } }, { fuelEntries: { some: {} } }, { brickEntries: { some: {} } }],
@@ -11,6 +18,8 @@ export async function resolveUpload(id: string, approved: boolean) {
   return prisma.$transaction(async tx => {
     const upload = await tx.pendingUpload.findUnique({ where: { id }, include: { report: true } });
     if (!upload || upload.status !== "PENDING") throw new Error("Upload already reviewed or not found.");
+    const message = await tx.telegramMessage.findUnique({ where: { id } });
+    if (message?.status !== "approval_requested") throw new Error("The sender has not submitted this upload for review.");
     if (!isLedgerType(upload.mode)) throw new Error("Invalid ledger type.");
     if (approved) {
       const legacy = await tx.dailyReport.count({ where: { id: upload.reportId, ...legacyPendingWhere } });

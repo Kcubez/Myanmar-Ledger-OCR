@@ -67,24 +67,24 @@ export function TrendChart({ data: source }: { data: { label: string; a: number;
   );
 }
 
-export function DonutChart({ slices }: { slices: { label: string; value: number }[] }) {
+export function DonutChart({ slices, totalLabel = "Total revenue", centerLabel = "payment methods", unit = "Ks" }: { slices: { label: string; value: number }[]; totalLabel?: string; centerLabel?: string; unit?: string }) {
   const [hover, setHover] = useState<number | null>(null);
   const total = slices.reduce((sum, s) => sum + s.value, 0);
   const active = hover === null ? null : slices[hover];
   const percent = (value: number) => total > 0 ? `${(value / total * 100).toFixed(1)}%` : "0%";
   const top = slices.length ? slices.reduce((a, b) => (b.value > a.value ? b : a)) : null;
   return (
-    <div className="payment-chart" role="img" aria-label={`Revenue by payment, total ${fmt(total)} Ks${top ? `, largest: ${top.label} ${percent(top.value)}` : ""}`}>
+    <div className="payment-chart" role="img" aria-label={`${totalLabel}, total ${fmt(total)} ${unit}${top ? `, largest: ${top.label} ${percent(top.value)}` : ""}`}>
       <div className="payment-ring">
         {total > 0 ? <PieChart width={196} height={196} hideLegend colors={COLORS}
           series={[{ id: "payment", data: slices.map((s, i) => ({ ...s, id: i })), innerRadius: 72, outerRadius: 94, paddingAngle: 3, cornerRadius: 4,
-            highlightScope: { highlight: "item", fade: "global" }, valueFormatter: (s) => `${fmt(s.value)} Ks · ${percent(s.value)}` }]}
+            highlightScope: { highlight: "item", fade: "global" }, valueFormatter: (s) => `${fmt(s.value)} ${unit} · ${percent(s.value)}` }]}
           highlightedItem={hover === null ? null : { seriesId: "payment", dataIndex: hover }}
           onHighlightChange={(h) => setHover(h?.dataIndex ?? null)} margin={0} /> : <div className="payment-ring-empty" />}
-        <div className="payment-center"><span>{active ? percent(active.value) : slices.filter(s => s.value > 0).length}</span><small>{active ? active.label : "payment methods"}</small></div>
+        <div className="payment-center"><span>{active ? percent(active.value) : slices.filter(s => s.value > 0).length}</span><small>{active ? active.label : centerLabel}</small></div>
       </div>
       <div className="payment-detail">
-        <div className="payment-total"><span>Total revenue</span><strong>{fmt(total)} <small>Ks</small></strong></div>
+        <div className="payment-total"><span>{totalLabel}</span><strong>{fmt(total)} <small>{unit}</small></strong></div>
         <div className="payment-rows">{slices.map((s, i) => (
           <div key={s.label} className="payment-row" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
             <span className="payment-label"><i style={{ background: COLORS[i % COLORS.length] }} />{s.label}</span>

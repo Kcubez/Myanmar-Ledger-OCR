@@ -3,6 +3,7 @@ import type { Prisma } from "../generated/prisma/client";
 import { amountFrom, type LedgerType } from "./extract";
 import { operationIsWageSubtotal } from "./extract/expense";
 import { extractContentDate } from "./report-date";
+import { hasLedgerContent } from "./extraction-content";
 
 export type ExtractedPayload = {
   contentDateText: string;
@@ -29,6 +30,7 @@ function brickSig(row: { date: Date; item: string; qty: unknown; unitPrice: unkn
 }
 
 export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, extracted: ExtractedPayload, reportDate: Date): Promise<{ added: number; skipped: number }> {
+  if (!hasLedgerContent(mode, extracted.lines)) throw new Error("No readable ledger rows. Reject this upload and resend a clearer photo.");
   const big = (value: string): bigint => BigInt(Math.round(amountFrom(value)));
   switch (mode) {
     case "inventory": {
@@ -147,4 +149,3 @@ export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, e
     }
   }
 }
-

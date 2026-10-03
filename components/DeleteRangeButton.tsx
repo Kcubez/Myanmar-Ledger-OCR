@@ -18,9 +18,11 @@ export function DeleteRangeButton({
   gte,
   lte,
   category,
+  variant,
 }: {
   kind: "fuel" | "brick" | "revenue" | "expense" | "inventory" | "maintenance";
   category?: string;
+  variant?: string;
   inline?: boolean;
   kindLabel: string;
   count: number;
@@ -41,7 +43,7 @@ export function DeleteRangeButton({
       const response = await fetch("/api/ledger-entries", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, gte, lte, category }),
+        body: JSON.stringify({ kind, gte, lte, category, variant }),
       });
       if (!response.ok) throw new Error("Delete failed.");
       setConfirming(false);

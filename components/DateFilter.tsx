@@ -82,6 +82,7 @@ export function DateFilter() {
   function go(next: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("page");
+    params.delete("wagePage");
     for (const [key, value] of Object.entries(next)) {
       if (value === undefined) params.delete(key);
       else params.set(key, value);
@@ -252,4 +253,3 @@ export function DateFilter() {
     </Box>
   );
 }
-

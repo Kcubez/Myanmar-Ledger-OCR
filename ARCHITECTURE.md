@@ -86,8 +86,8 @@ model TelegramMessage { id String @id @default(cuid())
 Plus BAI-copied: `User/Session/Account/Verification` (Better Auth), `TelegramSender` (telegramUserId BigInt, email, otpCode/otpExpiresAt, isVerified, isAuthorized, `allowedLedgers String[]`, activeReportType, userId tenant FK). No `Shop` table (single client; add with RLS only for client #2). Money = kyat integer BigInt (serialize via `.toString()`); RLS owner-only; Prisma server code uses service role.
 
 ## 4. Auth & route guard
-- Better Auth email/password; first admin via `/setup` (locks permanently after first user, API 403); `/admin/users` role promote.
-- `proxy.ts` (Next 16, not middleware): session-cookie check; PUBLIC = `/login /admin/login /api/auth /setup /api/setup /api/telegram/*`; everything else redirects to login.
+- Better Auth email/password; public signup disabled; existing admins create accounts and manage roles via `/admin/users`. `/setup` and its API are retired.
+- `proxy.ts` (Next 16, not middleware): session-cookie check; PUBLIC = `/login /admin/login /api/auth /api/telegram/*`; everything else redirects to login.
 - `/api/senders` (admin): list + toggle `isAuthorized / allowedLedgers`.
 
 ## 5. Extraction library (`lib/extract/`)
@@ -101,7 +101,7 @@ Plus BAI-copied: `User/Session/Account/Verification` (Better Auth), `TelegramSen
 - `senders.ts` adapted: upsert, activeReportType state machine, OTP helpers.
 
 ## 7. Dashboard
-- Routes: `/dashboard` overview, `/fuel`, `/brick`, `/reports/[date]`, `/approvals`, `/settings`, `/admin/users`, `/login`, `/admin/login`, `/setup`.
+- Routes: `/dashboard` overview, `/fuel`, `/brick`, `/reports/[date]`, `/approvals`, `/settings`, `/admin/users`, `/login`, `/admin/login`.
 - Date filter (BAI semantics, URL-only): `lib/date-filter.ts` + `components/DateFilter.tsx` in the header-right `actions` slot; default current month; modes overall/day/month/year/custom.
 - Range delete: `DELETE /api/ledger-entries` (fuel|brick, owner-only) + reusable `components/Modal.tsx` confirm.
 - Dashboard approve/reject (`POST /api/approvals`) notifies the submitter's Telegram chat.
@@ -116,4 +116,4 @@ Retryable (next key): 429/quota/rate-limit/invalid-key/permission-denied. Termin
 ## 10. BAI reuse map
 | Copy verbatim | Adapt (rename/reshape) | Skip |
 |---|---|---|
-| `telegram/client.ts`, `text-normalize.ts`, `/setup` lock, `proxy.ts` shape, `senders` API shape | `templates.ts` prompts, `demand-parser.ts` → `ledger-parser` per-type, `TelegramSender.allowedDepartments` → `allowedLedgers`, finance tables → ledger tables | Customer/Demand/HR/projects-infra, xlsx bulk import, QA/QADocument, multi-role RBAC beyond admin/user |
+| `telegram/client.ts`, `text-normalize.ts`, `proxy.ts` shape, `senders` API shape | `templates.ts` prompts, `demand-parser.ts` → `ledger-parser` per-type, `TelegramSender.allowedDepartments` → `allowedLedgers`, finance tables → ledger tables | Customer/Demand/HR/projects-infra, xlsx bulk import, QA/QADocument, multi-role RBAC beyond admin/user |

@@ -29,6 +29,7 @@ export async function finalizeReportMessages(opts: {
   reportId: string;
   approved: boolean;
   messageIds?: string[];
+  recipients?: { chatId: string; botReplyMessageId: number | null }[];
 }): Promise<void> {
   try {
     const botToken = opts.botToken ?? (opts.ownerUserId ? await resolveNotifyToken(opts.ownerUserId) : null);
@@ -36,7 +37,7 @@ export async function finalizeReportMessages(opts: {
       console.error("Approval notify skipped: no bot token (neither DB nor env).");
       return;
     }
-    const rows = await prisma.telegramMessage.findMany({
+    const rows = opts.recipients ?? await prisma.telegramMessage.findMany({
       where: { reportId: opts.reportId, ...(opts.messageIds ? { id: { in: opts.messageIds } } : { id: { notIn: (await prisma.pendingUpload.findMany({ where: { reportId: opts.reportId }, select: { id: true } })).map(u => u.id) } }) },
       select: { chatId: true, botReplyMessageId: true },
     });

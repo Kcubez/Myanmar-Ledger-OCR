@@ -61,22 +61,7 @@ export function parseDateParam(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return null;
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-/**
- * Reject = delete everything. Marks linked Telegram messages "rejected",
- * then deletes the DailyReport — all 5 line types + source-image rows
- * cascade; message rows survive with reportId set to null (history).
- * Callers must finalize Telegram notes BEFORE calling this (finalize looks
- * messages up by reportId).
- */
-export async function deleteReportCascade(reportId: string): Promise<void> {
-  await prisma.telegramMessage.updateMany({
-    where: { reportId },
-    data: { status: "rejected" },
-  });
-  await prisma.dailyReport.delete({ where: { id: reportId } });
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date;
 }
 
 export { num, dec };

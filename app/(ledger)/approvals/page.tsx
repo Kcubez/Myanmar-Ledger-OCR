@@ -1,4 +1,4 @@
-import { legacyPendingWhere } from "../../../lib/pending-uploads";
+import { legacyPendingWhere, pendingReviewWhere } from "../../../lib/pending-uploads";
 import { PendingUploadPreview } from "../../../components/PendingUploadPreview";
 import type { ExtractedPayload } from "../../../lib/persist-ledger";
 import { ownerPageOrRedirect } from "../../../lib/owner-page";
@@ -6,6 +6,7 @@ import { prisma } from "../../../lib/prisma";
 import { PageHeader, StatusPill } from "../../../components/layout";
 import { ApprovalButtons } from "../../../components/ApprovalButtons";
 import { ReportEditor } from "../../../components/ReportEditor";
+import { reportRevision } from "../../../lib/report-revision";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function ApprovalsPage() {
     },
   });
 
-  const uploads = await prisma.pendingUpload.findMany({ where: { status: "PENDING" }, include: { report: { select: { date: true } } }, orderBy: { createdAt: "asc" } });
+  const uploads = await prisma.pendingUpload.findMany({ where: await pendingReviewWhere(), include: { report: { select: { date: true } } }, orderBy: { createdAt: "asc" } });
 
   return (
     <>
@@ -51,6 +52,7 @@ export default async function ApprovalsPage() {
                   <ReportEditor
                     dateKey={dateKey}
                     initial={{
+                      revision: reportRevision(report),
                       status: report.status,
                       revenueLines: report.revenueLines.map((row) => ({ id: row.id, method: row.method, amount: Number(row.amount) })),
                       expenseLines: report.expenseLines.map((row) => ({

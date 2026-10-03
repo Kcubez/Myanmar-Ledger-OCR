@@ -1,4 +1,6 @@
 import type { ExtractedPayload } from "../../../../lib/persist-ledger";
+import { hasLedgerContent } from "../../../../lib/extraction-content";
+import { finalizeReportMessages } from "../../../../lib/telegram/notify";
 import { NextRequest, NextResponse, after } from "next/server";
 import sharp from "sharp";
 
@@ -512,7 +514,7 @@ async function processPhoto(
   }
 
   // Empty/wrong-mode results must not become replacements for approved data.
-  if (extracted.flags.includes("response") || (Array.isArray(extracted.lines) && extracted.lines.length === 0)) {
+  if (extracted.flags.includes("response") || !hasLedgerContent(mode, extracted.lines)) {
     return fail(extractionEmptyMessage);
   }
 
@@ -532,7 +534,7 @@ async function processPhoto(
 
     const message = await tx.telegramMessage.findUniqueOrThrow({ where: { chatId_messageId: { chatId, messageId } } });
     await tx.pendingUpload.create({ data: {
-      id: message.id, reportId: rep.id, mode, payload: JSON.parse(JSON.stringify(extracted)),
+      id: message.id, reportId: rep.id, mode, status: "DRAFT", payload: JSON.parse(JSON.stringify(extracted)),
     } });
     const counts = { added: 0, skipped: 0 };
     await tx.sourceImage.create({
@@ -682,9 +684,24 @@ async function handleSubmitterConfirm(
     return;
   }
   const target = report.telegramMessages.find(m => m.chatId === String(chatId) && m.botReplyMessageId === messageId);
+  if (!target) {
+    await answerCallbackQuery(botToken, queryId, "Upload not found in this chat");
+    return;
+  }
   const pendingUpload = target ? await prisma.pendingUpload.findUnique({ where: { id: target.id } }) : null;
-  if (pendingUpload?.status === "PENDING") {
-    await prisma.telegramMessage.update({ where: { id: target!.id }, data: { status: "approval_requested" } });
+  if (pendingUpload && ["DRAFT", "PENDING"].includes(pendingUpload.status)) {
+    const submitted = await prisma.$transaction(async tx => {
+      const current = await tx.pendingUpload.findUnique({ where: { id: pendingUpload.id } });
+      const message = await tx.telegramMessage.findUnique({ where: { id: pendingUpload.id } });
+      if (!current || !["DRAFT", "PENDING"].includes(current.status) || message?.status !== "extracted") return false;
+      await tx.pendingUpload.update({ where: { id: current.id }, data: { status: "PENDING" } });
+      await tx.telegramMessage.update({ where: { id: current.id }, data: { status: "approval_requested" } });
+      return true;
+    }, { isolationLevel: "Serializable" });
+    if (!submitted) {
+      await answerCallbackQuery(botToken, queryId, "Already submitted or reviewed");
+      return;
+    }
     const edited = await editTelegramMessage({ botToken, chatId, messageId, text: waitingForApprovalMessage, replyMarkup: { inline_keyboard: [] } });
     if (!edited) {
       const waiting = await sendTelegramMessage({ botToken, chatId, text: waitingForApprovalMessage });
@@ -694,6 +711,16 @@ async function handleSubmitterConfirm(
       }
     }
     await answerCallbackQuery(botToken, queryId, "Sent for approval");
+    // Approval may finish while Telegram is editing the waiting message.
+    const latest = await prisma.pendingUpload.findUnique({ where: { id: pendingUpload.id } });
+    if (latest && ["CONFIRMED", "REJECTED"].includes(latest.status)) {
+      await finalizeReportMessages({ botToken, reportId, approved: latest.status === "CONFIRMED", messageIds: [latest.id] });
+    }
+    return;
+  }
+  if (pendingUpload) {
+    await answerCallbackQuery(botToken, queryId, "Already reviewed");
+    await editMessageButtons({ botToken, chatId, messageId });
     return;
   }
   if (report.status === "CONFIRMED") {

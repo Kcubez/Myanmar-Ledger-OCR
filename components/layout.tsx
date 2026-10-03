@@ -14,6 +14,7 @@ import {
   Card,
   CardContent,
   Chip,
+  Divider,
   Drawer,
   IconButton,
   List,
@@ -172,17 +173,17 @@ export function StatCard({
     >
       <CardContent sx={{ p: { xs: "18px 14px", sm: "24px" }, "&:last-child": { pb: "24px" } }}>
         <span className="stat-label-row">
-          {icon && (
-            <span className="stat-icon" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={STAT_ICON_PATHS[icon]} /></svg>
-            </span>
-          )}
           <Typography
             variant="caption"
             sx={{ color: "var(--muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}
           >
             {label}
           </Typography>
+          {icon && (
+            <span className="stat-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={STAT_ICON_PATHS[icon]} /></svg>
+            </span>
+          )}
         </span>
         <Typography
           variant="h5"
@@ -314,8 +315,14 @@ export function AppShell({ children, role, account }: { children: React.ReactNod
           <Box component="span" aria-hidden="true" sx={{ color: "#b9afc5", fontSize: ".7rem", transition: "transform .15s", transform: accountAnchor ? "rotate(180deg)" : "none" }}>▾</Box>
         </Button>
         <Menu anchorEl={accountAnchor} open={Boolean(accountAnchor)} onClose={() => setAccountAnchor(null)} anchorOrigin={{ vertical: "top", horizontal: "right" }} transformOrigin={{ vertical: "bottom", horizontal: "right" }}
-          slotProps={{ paper: { sx: { borderRadius: "12px", minWidth: 150, p: 0.5 } } }}>
-          <MenuItem onClick={() => { setAccountAnchor(null); void signOut(); }} sx={{ gap: 1.5, px: 1.5, py: 1, borderRadius: "8px", color: "#b3261e", fontWeight: 600, fontSize: ".88rem" }}>
+          aria-label="Account"
+          slotProps={{ paper: { sx: { borderRadius: "12px", minWidth: 210, p: 0.5, bgcolor: "#221d2e", border: "1px solid rgba(255,255,255,.1)", boxShadow: "0 12px 32px rgba(0,0,0,.45)" } } }}>
+          <Box sx={{ px: 1.5, pt: 1, pb: 0.5 }}>
+            <Typography noWrap sx={{ fontSize: ".88rem", fontWeight: 600, color: "#f6f1ff" }}>{account?.name || (isAdmin ? "Administrator" : "Ledger account")}</Typography>
+            <Typography noWrap sx={{ fontSize: ".72rem", color: "#b9afc5" }}>{account?.email || "Account options"}</Typography>
+          </Box>
+          <Divider sx={{ borderColor: "rgba(255,255,255,.1)", my: 0.5 }} />
+          <MenuItem onClick={() => { setAccountAnchor(null); void signOut(); }} sx={{ gap: 1.5, px: 1.5, py: 1, minHeight: 44, borderRadius: "8px", color: "#e8a0a4", fontWeight: 600, fontSize: ".88rem", transition: "background-color .15s ease", "&:hover": { bgcolor: "rgba(255,255,255,.06)" } }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 4H4v16h5 M10 12h11 M17 8l4 4-4 4" /></svg>Sign out
           </MenuItem>
         </Menu>

@@ -64,19 +64,22 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rev, setRev] = useState<RevenueRow[] | null>(null);
+  const [revision, setRevision] = useState<string | null>(null);
   const [exp, setExp] = useState<ExpenseRow[] | null>(null);
 
   async function load() {
+    setRevision(null);
     setOpen(true);
     setLoading(true);
     try {
       const response = await fetch(`/api/reports/${dateKey}`);
       if (!response.ok) throw new Error("Load failed.");
       const data = (await response.json()) as {
-        report: { revenueLines: RevenueRow[]; expenseLines: ExpenseRow[] };
+        report: { revision: string; revenueLines: RevenueRow[]; expenseLines: ExpenseRow[] };
       };
       setRev(data.report.revenueLines);
       setExp(data.report.expenseLines);
+      setRevision(data.report.revision);
     } catch {
       toast.error("Load failed.");
     } finally {
@@ -85,19 +88,20 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
   }
 
   async function save() {
+    if (!revision || loading) return;
     setSaving(true);
     try {
       const body = kind === "revenue" ? { revenue: rev } : { expense: exp };
       const response = await fetch(`/api/reports/${dateKey}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, expectedRevision: revision }),
       });
-      if (!response.ok) throw new Error("Save failed.");
+      if (!response.ok) throw new Error((await response.json()).message ?? "Save failed.");
       setOpen(false);
       router.refresh();
-    } catch {
-      toast.error("Save failed.");
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Save failed.");
     } finally {
       setSaving(false);
     }
@@ -155,6 +159,7 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
         }
         confirmLabel={saving ? "Saving…" : "Save"}
         busy={saving}
+        confirmDisabled={loading || !revision}
         onConfirm={save}
         onCancel={() => {
           if (!saving) setOpen(false);
@@ -184,12 +189,14 @@ export function RowEditModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fuel, setFuel] = useState<FuelRow[] | null>(null);
+  const [revision, setRevision] = useState<string | null>(null);
   const [brick, setBrick] = useState<BrickRow[] | null>(null);
   const [maint, setMaint] = useState<MaintRow[] | null>(null);
   const [rev, setRev] = useState<RevRow[] | null>(null);
   const [exp, setExp] = useState<ExpRow[] | null>(null);
 
   async function load() {
+    setRevision(null);
     setOpen(true);
     setLoading(true);
     try {
@@ -197,6 +204,7 @@ export function RowEditModal({
       if (!response.ok) throw new Error("Load failed.");
       const data = (await response.json()) as {
         report: {
+          revision: string;
           fuelEntries: FuelRow[];
           brickEntries: BrickRow[];
           maintenanceLines: MaintRow[];
@@ -205,6 +213,7 @@ export function RowEditModal({
         };
       };
       setFuel(data.report.fuelEntries);
+      setRevision(data.report.revision);
       setBrick(data.report.brickEntries);
       setMaint(data.report.maintenanceLines);
       setRev(data.report.revenueLines);
@@ -217,6 +226,7 @@ export function RowEditModal({
   }
 
   async function save() {
+    if (!revision || loading) return;
     setSaving(true);
     try {
       const body =
@@ -232,13 +242,13 @@ export function RowEditModal({
       const response = await fetch(`/api/reports/${dateKey}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, expectedRevision: revision }),
       });
-      if (!response.ok) throw new Error("Save failed.");
+      if (!response.ok) throw new Error((await response.json()).message ?? "Save failed.");
       setOpen(false);
       router.refresh();
-    } catch {
-      toast.error("Save failed.");
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Save failed.");
     } finally {
       setSaving(false);
     }
@@ -396,6 +406,7 @@ export function RowEditModal({
         }
         confirmLabel={saving ? "Saving…" : "Save"}
         busy={saving}
+        confirmDisabled={loading || !revision || !row}
         onConfirm={save}
         onCancel={() => {
           if (!saving) setOpen(false);

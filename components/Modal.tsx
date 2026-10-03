@@ -34,6 +34,7 @@ export function Modal({
   cancelLabel = "Cancel",
   danger = false,
   busy = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: {
@@ -44,6 +45,7 @@ export function Modal({
   cancelLabel?: string;
   danger?: boolean;
   busy?: boolean;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -89,7 +91,7 @@ export function Modal({
         <Button
           ref={confirmRef}
           onClick={onConfirm}
-          disabled={busy}
+          disabled={busy || confirmDisabled}
           variant="contained"
           color={danger ? "error" : "primary"}
         >

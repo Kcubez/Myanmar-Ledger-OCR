@@ -18,7 +18,7 @@ Single-client ledger system: Telegram-only input, dashboard-only web. Ledger typ
 - `proxy.ts` guard + PUBLIC list is load-bearing; keep `/api/telegram/*` public (secret-header auth) and everything else session-gated.
 - Every webhook update passes `checkAuthorization` BEFORE any Gemini/file work. Mode switches check `allowedLedgers`.
 - Prisma server code uses service role; browser uses anon key + RLS (owner-only). Never expose service key to client.
-- `/setup` lock (403 after first user) must keep working — it is the client-handover path.
+- `/setup` is retired. Existing admins provision accounts; public signup stays disabled.
 
 ## Data rules
 - Uploads stage extracted JSON in `PendingUpload`; only approval mutates live ledger lines. Never reset an approved report to PENDING on a new upload. Rejecting an upload must preserve existing approved data.

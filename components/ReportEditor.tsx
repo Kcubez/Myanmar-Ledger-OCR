@@ -7,6 +7,7 @@ import { RowEditModal } from "./QuickEditModal";
 import { useToast } from "./ToastProvider";
 
 export type EditableReport = {
+  revision: string;
   status: string;
   revenueLines: { id: string; method: string; amount: number }[];
   expenseLines: { id: string; category: string; name: string | null; amount: number }[];
@@ -59,13 +60,13 @@ export function ReportEditor({ dateKey, initial }: { dateKey: string; initial: E
       const response = await fetch(`/api/reports/${dateKey}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [kind]: kept }),
+        body: JSON.stringify({ [kind]: kept, expectedRevision: initial.revision }),
       });
-      if (!response.ok) throw new Error("Delete failed.");
+      if (!response.ok) throw new Error((await response.json()).message ?? "Delete failed.");
       setConfirming(null);
       router.refresh();
-    } catch {
-      toast.error("Delete failed.");
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Delete failed.");
     } finally {
       setBusyId(null);
     }
