@@ -20,8 +20,10 @@ import {
   processingCompleteMessage,
   processingFailedMessage,
   waitingForApprovalMessage,
-  buildExtractSummaryMessage,
+  submitterRejectedMessage,
+  buildExtractPreviewMessage,
   buildLedgerMenuButtons,
+  buildLinkKeyboard,
   getFormatPromptForMode,
   getLinkInstructions,
   ledgerLabel,
@@ -101,6 +103,7 @@ async function gate(
       "",
       getLinkInstructions(),
     ].join("\n"),
+    replyMarkup: buildLinkKeyboard(),
   });
   return false;
 }
@@ -258,49 +261,72 @@ export async function POST(req: NextRequest) {
 async function handleText(
   botToken: string,
   ownerUserId: string | null,
-  sender: { id: string; otpCode: string | null; otpExpiresAt: Date | null; email: string | null },
+  sender: {
+    id: string;
+    telegramUserId: bigint | null;
+    activeReportType: string;
+    isVerified: boolean;
+    isAuthorized: boolean;
+    otpCode: string | null;
+    otpExpiresAt: Date | null;
+    email: string | null;
+  },
   chatId: number,
   text: string,
 ) {
   // OTP entry: pending code + 6 digits.
-  if (sender.otpCode && /^\d{6}$/.test(text)) {
+  if (sender.activeReportType === "awaiting_otp" && sender.otpCode && /^\d{6}$/.test(text)) {
     if (sender.otpCode !== text || !sender.otpExpiresAt || sender.otpExpiresAt < new Date()) {
-      await sendTelegramMessage({ botToken, chatId, text: "❌ OTP မှားနေပါသည် သို့မဟုတ် သက်တမ်းကုန်ပါပြီ။ <code>/link email</code> ဖြင့် ပြန်တောင်းပါ။" });
+      await sendTelegramMessage({ botToken, chatId, text: "❌ OTP is incorrect or expired. Tap <code>/link</code> to request a new code.", replyMarkup: buildLinkKeyboard() });
       return;
     }
     // Inherit pre-registered scopes from an admin-created row.
     // The placeholder (telegramUserId null) is consumed here so /settings
     // stops showing a stale PENDING duplicate next to the LINKED row.
-    const pre = sender.email
+    const pre = sender.email && ownerUserId
       ? await prisma.telegramSender.findFirst({
-          where: { email: sender.email, id: { not: sender.id }, userId: ownerUserId, telegramUserId: null },
+          where: {
+            email: sender.email,
+            id: { not: sender.id },
+            userId: ownerUserId,
+            OR: [{ telegramUserId: null }, { telegramUserId: sender.telegramUserId }],
+          },
         })
       : null;
+    if (!pre) {
+      await prisma.telegramSender.update({
+        where: { id: sender.id },
+        data: { otpCode: null, otpExpiresAt: null, activeReportType: "none", isVerified: false, isAuthorized: false },
+      });
+      await sendTelegramMessage({
+        botToken,
+        chatId,
+        text: "❌ This email is no longer authorized. Ask your administrator to add it in Settings, then tap <code>/link</code> again.",
+        replyMarkup: buildLinkKeyboard(),
+      });
+      return;
+    }
     await prisma.telegramSender.update({
       where: { id: sender.id },
       data: {
         isVerified: true,
-        isAuthorized: true,
-        allowedLedgers: pre ? pre.allowedLedgers : [],
+        isAuthorized: pre.isAuthorized,
+        allowedLedgers: pre.allowedLedgers,
         otpCode: null,
         otpExpiresAt: null,
+        activeReportType: "none",
       },
     });
-    if (pre) {
-      // No userId filter: when the owner can't be resolved the placeholder
-      // would otherwise survive as a stale PENDING duplicate. Same-email
-      // null-telegram rows are placeholders by construction, so this is safe.
-      await prisma.telegramSender
-        .deleteMany({
-          where: { email: sender.email, telegramUserId: null },
-        })
-        .catch(() => undefined);
+    if (pre.telegramUserId === null) {
+      await prisma.telegramSender.delete({ where: { id: pre.id } }).catch(() => undefined);
     }
     const updated = await prisma.telegramSender.findUnique({ where: { id: sender.id } });
     await sendTelegramMessage({
       botToken,
       chatId,
-      text: ["✅ <b>ချိတ်ဆက်ပြီးပါပြီ!</b>", "", "Ledger ရွေးပြီး photo တင်နိုင်ပါပြီ —"].join("\n"),
+      text: updated?.isAuthorized
+        ? ["✅ <b>Account linked</b>", "", "Choose a ledger type, then send a photo.\nအောက်မှ ledger ကိုရွေးပြီး photo တင်နိုင်ပါပြီ။"].join("\n")
+        : "⏳ Your email is verified, but ledger access is still awaiting administrator approval.",
       replyMarkup: buildLedgerMenuButtons(updated?.allowedLedgers ?? []),
     });
     return;
@@ -321,6 +347,7 @@ async function handleText(
       botToken,
       chatId,
       text: ["🤖 <b>Ledger Bot</b> မှ ကြိုဆိုပါတယ်!", "", getLinkInstructions()].join("\n"),
+      replyMarkup: buildLinkKeyboard(),
     });
     return;
   }
@@ -348,30 +375,82 @@ async function handleText(
   if (text === "/unlink") {
     await prisma.telegramSender.update({
       where: { id: sender.id },
-      data: { isVerified: false, isAuthorized: false, otpCode: null, otpExpiresAt: null, activeReportType: "none" },
+      data: { email: null, isVerified: false, isAuthorized: false, otpCode: null, otpExpiresAt: null, activeReportType: "none", allowedLedgers: [] },
     });
-    await sendTelegramMessage({ botToken, chatId, text: "🔓 အကောင့်ဖြုတ်လိုက်ပါပြီ။ ပြန်ချိတ်ရန် /start" });
+    await sendTelegramMessage({ botToken, chatId, text: "🔓 Account unlinked. Tap <code>/link</code> to connect again.", replyMarkup: buildLinkKeyboard() });
     return;
   }
 
-  if (text.startsWith("/link")) {
-    const email = text.replace("/link", "").trim().toLowerCase();
-    if (!/.+@.+\..+/.test(email)) {
-      await sendTelegramMessage({ botToken, chatId, text: "📧 <code>/link your@email.com</code> ပုံစံဖြင့် ပို့ပေးပါ။" });
+  if (text === "/link") {
+    if (isSenderAuthorized(sender)) {
+      await sendTelegramMessage({
+        botToken,
+        chatId,
+        text: "✅ Your account is already linked. Use <code>/menu</code> to choose a ledger, or <code>/unlink</code> before linking a different email.",
+      });
+      return;
+    }
+    await prisma.telegramSender.update({
+      where: { id: sender.id },
+      // Keep an already-linked account intact until a new email has passed
+      // the pre-registration check. This prevents an abandoned relink flow
+      // from accidentally removing its access.
+      data: { activeReportType: "awaiting_email", otpCode: null, otpExpiresAt: null },
+    });
+    await sendTelegramMessage({
+      botToken,
+      chatId,
+      text: "🔐 <b>Link your account</b>\n\nSend the email address registered by your administrator.\nAdmin စာရင်းသွင်းထားသော email ကို ရိုက်ပို့ပါ။",
+      replyMarkup: buildLinkKeyboard(),
+    });
+    return;
+  }
+
+  // Backward-compatible shortcut for people who already use /link email.
+  const inlineLinkEmail = text.startsWith("/link ") ? text.replace("/link", "").trim() : null;
+  if (sender.activeReportType === "awaiting_email" || inlineLinkEmail !== null) {
+    const email = (inlineLinkEmail ?? text).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      await sendTelegramMessage({ botToken, chatId, text: "⚠️ Please send a valid email, for example <code>name@company.com</code>.", replyMarkup: buildLinkKeyboard() });
+      return;
+    }
+    const pre = ownerUserId
+      ? await prisma.telegramSender.findFirst({
+          where: {
+            email,
+            userId: ownerUserId,
+            OR: [{ telegramUserId: null }, { telegramUserId: sender.telegramUserId }],
+          },
+        })
+      : null;
+    if (!pre) {
+      await sendTelegramMessage({
+        botToken,
+        chatId,
+        text: `❌ <code>${escapeHtml(email)}</code> is not registered for this Ledger. Please ask your administrator to add it in Settings.`,
+        replyMarkup: buildLinkKeyboard(),
+      });
       return;
     }
     const otp = sixDigitOtp();
     await prisma.telegramSender.update({
       where: { id: sender.id },
-      data: { email, otpCode: otp, otpExpiresAt: new Date(Date.now() + OTP_TTL_MS) },
+      data: { email, otpCode: otp, otpExpiresAt: new Date(Date.now() + OTP_TTL_MS), activeReportType: "awaiting_otp", isVerified: false, isAuthorized: false },
     });
     const sent = await sendOTPEmail(email, otp);
+    if (!sent) {
+      await prisma.telegramSender.update({
+        where: { id: sender.id },
+        data: { otpCode: null, otpExpiresAt: null, activeReportType: "awaiting_email" },
+      });
+    }
     await sendTelegramMessage({
       botToken,
       chatId,
       text: sent
-        ? `📨 <b>${escapeHtml(email)}</b> သို့ ၆ လုံး OTP ပို့ပြီးပါပြီ။ ဒီ chat ထဲမှာ ရိုက်ထည့်ပါ (၁၀ မိနစ်အတွင်း)။`
-        : "❌ OTP email ပို့မရပါ။ နောက်မှ ပြန်စမ်းပါ။",
+        ? `📨 A 6-digit OTP was sent to <b>${escapeHtml(email)}</b>. Enter it here within 10 minutes.\nOTP ကို ဒီ chat ထဲမှာ ရိုက်ထည့်ပါ။`
+        : "❌ We could not send the OTP email. Please try again later.",
+      replyMarkup: buildLinkKeyboard(),
     });
     return;
   }
@@ -379,7 +458,7 @@ async function handleText(
   await sendTelegramMessage({
     botToken,
     chatId,
-    text: "Photo တင်ရန် — <code>/menu</code> မှ ledger ရွေး၊ ပြီးမှ photo ပို့ပါ။\nအကောင့်ချိတ်ရန် — <code>/link email</code>",
+    text: "To send a photo, choose a ledger from <code>/menu</code> first.\nအကောင့်ချိတ်ရန် <code>/link</code> ကိုနှိပ်ပါ။",
   });
 }
 
@@ -441,6 +520,11 @@ async function handleCallback(
 
   if (data.startsWith("confirm:")) {
     await handleSubmitterConfirm(botToken, chatId, messageId, queryId, data.replace("confirm:", ""));
+    return;
+  }
+
+  if (data.startsWith("reject:")) {
+    await handleSubmitterReject(botToken, chatId, messageId, queryId, data.replace("reject:", ""));
     return;
   }
 
@@ -558,8 +642,19 @@ async function processPhoto(
   const summaryMsg = await sendTelegramMessage({
     botToken,
     chatId,
-    text: buildExtractSummaryMessage({ summary: extracted.summary, dateKey: key, mode, added, skipped }),
-    replyMarkup: { inline_keyboard: [[{ text: "Submit for review", callback_data: `confirm:${report.id}` }]] },
+    text: buildExtractPreviewMessage({
+      summary: extracted.summary,
+      dateKey: key,
+      mode,
+      lines: extracted.lines,
+      unreadableFields: extracted.flags,
+    }),
+    replyMarkup: {
+      inline_keyboard: [[
+        { text: "✅ Confirm", callback_data: `confirm:${report.id}` },
+        { text: "❌ Reject", callback_data: `reject:${report.id}` },
+      ]],
+    },
   });
   await updateProgress(summaryMsg ? processingCompleteMessage : processingFailedMessage);
   // Remember the bot's reply so approval flows can edit it in place later.
@@ -745,4 +840,48 @@ async function handleSubmitterConfirm(
       .updateMany({ where: { reportId }, data: { botReplyMessageId: waitingMsg.message_id } })
       .catch((error) => console.error("Failed to store bot reply id:", error));
   }
+}
+
+/** The submitter can discard only their staged extraction; approved rows stay untouched. */
+async function handleSubmitterReject(
+  botToken: string,
+  chatId: number,
+  messageId: number,
+  queryId: string,
+  reportId: string,
+) {
+  const report = await prisma.dailyReport.findUnique({
+    where: { id: reportId },
+    include: { telegramMessages: true },
+  });
+  const target = report?.telegramMessages.find((message) =>
+    message.chatId === String(chatId) && message.botReplyMessageId === messageId,
+  );
+  if (!target) {
+    await answerCallbackQuery(botToken, queryId, "Upload not found in this chat");
+    return;
+  }
+
+  const rejected = await prisma.$transaction(async (tx) => {
+    const upload = await tx.pendingUpload.findUnique({ where: { id: target.id } });
+    const message = await tx.telegramMessage.findUnique({ where: { id: target.id } });
+    if (!upload || upload.status !== "DRAFT" || message?.status !== "extracted") return false;
+    await tx.pendingUpload.update({ where: { id: target.id }, data: { status: "REJECTED" } });
+    await tx.telegramMessage.update({ where: { id: target.id }, data: { status: "rejected" } });
+    return true;
+  }, { isolationLevel: "Serializable" });
+
+  if (!rejected) {
+    await answerCallbackQuery(botToken, queryId, "This upload was already submitted or reviewed");
+    return;
+  }
+  await answerCallbackQuery(botToken, queryId, "Rejected");
+  const edited = await editTelegramMessage({
+    botToken,
+    chatId,
+    messageId,
+    text: submitterRejectedMessage,
+    replyMarkup: { inline_keyboard: [] },
+  });
+  if (!edited) await editMessageButtons({ botToken, chatId, messageId });
 }

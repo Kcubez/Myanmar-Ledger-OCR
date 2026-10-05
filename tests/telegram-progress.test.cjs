@@ -28,3 +28,12 @@ test('download failure replaces processing even when database failure logging fa
  await run('token',['key'],'model','7',1,'photo','expense',async text=>updates.push(text));
  assert.equal(updates.length,1);assert.match(updates[0],/download/);
 });
+test('submitter rejection changes only the staged upload and removes preview actions',async()=>{
+ const edits=[];
+ const run=load('async function handleSubmitterReject(',null,{
+  prisma:{dailyReport:{findUnique:async()=>({telegramMessages:[{id:'upload',chatId:'7',botReplyMessageId:12}]})},$transaction:async fn=>fn({pendingUpload:{findUnique:async()=>({id:'upload',status:'DRAFT'}),update:async args=>assert.equal(args.data.status,'REJECTED')},telegramMessage:{findUnique:async()=>({status:'extracted'}),update:async args=>assert.equal(args.data.status,'rejected')}})},
+  answerCallbackQuery:async()=>{},editTelegramMessage:async args=>{edits.push(args);return true;},editMessageButtons:async()=>{},submitterRejectedMessage:'Rejected',
+ });
+ await run('token',7,12,'query','report');
+ assert.equal(edits.length,1);assert.equal(edits[0].text,'Rejected');assert.equal(edits[0].replyMarkup.inline_keyboard.length,0);
+});
