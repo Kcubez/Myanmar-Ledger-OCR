@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Box, CircularProgress, Fade, Typography } from "@mui/material";
+import { Box, Fade, FormControl, LinearProgress, MenuItem, Select, TextField, Typography } from "@mui/material";
 
 type Mode = "overall" | "day" | "month" | "year" | "custom";
 
@@ -20,37 +20,26 @@ function isoDay(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-const selectStyle = {
-  appearance: "none" as const,
-  WebkitAppearance: "none" as const,
-  padding: "9px 30px 9px 12px",
-  minHeight: 38,
-  borderRadius: "8px",
-  border: "1px solid var(--line)",
-  backgroundColor: "#fff",
-  color: "var(--ink)",
-  fontSize: "0.85rem",
-  fontWeight: 600,
-  cursor: "pointer",
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23605c70' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 8px center",
-  backgroundSize: "12px",
-  outline: "none",
-  transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+const fieldSx = {
+  minWidth: 96,
+  "& .MuiOutlinedInput-root": {
+    minHeight: 38,
+    borderRadius: "8px",
+    bgcolor: "#fff",
+    color: "var(--ink)",
+    fontSize: "0.85rem",
+    fontWeight: 600,
+    transition: "border-color .15s ease, box-shadow .15s ease",
+    "& fieldset": { borderColor: "var(--line)" },
+    "&:hover fieldset": { borderColor: "var(--leaf)" },
+    "&.Mui-focused": { boxShadow: "0 0 0 3px rgba(121,85,199,.16)" },
+    "&.Mui-focused fieldset": { borderColor: "var(--leaf)", borderWidth: 1 },
+  },
+  "& .MuiSelect-select, & input": { py: "8px", pr: "30px !important" },
 };
 
-const dateInputStyle = {
-  padding: "8px 10px",
-  minHeight: 38,
-  borderRadius: "8px",
-  border: "1px solid var(--line)",
-  backgroundColor: "#fff",
-  color: "var(--ink)",
-  fontSize: "0.85rem",
-  fontWeight: 600,
-  outline: "none",
-  transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+const menuProps = {
+  slotProps: { paper: { sx: { mt: 0.5, borderRadius: "10px", border: "1px solid var(--line)", boxShadow: "0 10px 28px rgba(35,27,50,.14)", "& .MuiMenuItem-root": { minHeight: 40, fontSize: "0.85rem", fontWeight: 600, "&.Mui-selected": { bgcolor: "var(--soft)", color: "var(--leaf)" } } } } },
 };
 
 /**
@@ -136,25 +125,17 @@ export function DateFilter() {
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-        <select
-          aria-label="Period"
-          className="date-filter-select"
-          value={mode}
-          onChange={(e) => setMode(e.target.value as Mode)}
-          style={selectStyle}
-        >
-          {MODES.map((m) => (
-            <option key={m.value} value={m.value}>
-              {m.label}
-            </option>
-          ))}
-        </select>
+        <FormControl size="small" sx={{ ...fieldSx, minWidth: 122 }}>
+          <Select aria-label="Period" value={mode} onChange={(e) => setMode(e.target.value as Mode)} MenuProps={menuProps}>
+            {MODES.map((m) => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
+          </Select>
+        </FormControl>
 
         {mode === "day" && (
-          <input
+          <TextField
             type="date"
             aria-label="Day"
-            className="date-filter-input"
+            size="small"
             value={isoDay(year, month, Math.min(day, new Date(year, month, 0).getDate()))}
             onChange={(e) => {
               const parts = e.target.value.split("-").map(Number);
@@ -162,92 +143,59 @@ export function DateFilter() {
                 go({ period: "day", year: String(parts[0]), month: String(parts[1]), day: String(parts[2]) });
               }
             }}
-            style={dateInputStyle}
+            sx={{ ...fieldSx, minWidth: 152 }}
           />
         )}
 
         {mode === "month" && (
-          <select
-            aria-label="Month"
-            className="date-filter-select"
-            value={String(month)}
-            onChange={(e) => go({ month: e.target.value, day: undefined })}
-            style={selectStyle}
-          >
-            {MONTHS.map((name, i) => (
-              <option key={name} value={String(i + 1)}>
-                {name}
-              </option>
-            ))}
-          </select>
+          <FormControl size="small" sx={{ ...fieldSx, minWidth: 88 }}>
+            <Select aria-label="Month" value={String(month)} onChange={(e) => go({ month: e.target.value, day: undefined })} MenuProps={menuProps}>
+              {MONTHS.map((name, i) => <MenuItem key={name} value={String(i + 1)}>{name}</MenuItem>)}
+            </Select>
+          </FormControl>
         )}
 
-        {mode !== "overall" && mode !== "custom" && (
-          <select
-            aria-label="Year"
-            className="date-filter-select"
-            value={String(year)}
-            onChange={(e) => go({ year: e.target.value })}
-            style={selectStyle}
-          >
-            {years.map((y) => (
-              <option key={y} value={String(y)}>
-                {y}
-              </option>
-            ))}
-          </select>
+        {mode !== "overall" && mode !== "custom" && mode !== "day" && (
+          <FormControl size="small" sx={{ ...fieldSx, minWidth: 84 }}>
+            <Select aria-label="Year" value={String(year)} onChange={(e) => go({ year: e.target.value })} MenuProps={menuProps}>
+              {years.map((y) => <MenuItem key={y} value={String(y)}>{y}</MenuItem>)}
+            </Select>
+          </FormControl>
         )}
 
         {mode === "custom" && (
-          <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
-            <input
+          <Box className="date-range-fields" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, width: { xs: "100%", sm: "auto" } }}>
+            <TextField
               type="date"
               aria-label="From date"
-              className="date-filter-input"
+              size="small"
               value={from}
-              max={to}
+              slotProps={{ htmlInput: { max: to } }}
               onChange={(e) => {
                 if (e.target.value && e.target.value <= to) go({ from: e.target.value });
               }}
-              style={dateInputStyle}
+              sx={{ ...fieldSx, minWidth: { xs: 0, sm: 152 }, flex: { xs: 1, sm: "0 0 auto" } }}
             />
             <Typography variant="caption" sx={{ color: "var(--muted)", fontWeight: 500 }}>
               to
             </Typography>
-            <input
+            <TextField
               type="date"
               aria-label="To date"
-              className="date-filter-input"
+              size="small"
               value={to}
-              min={from}
+              slotProps={{ htmlInput: { min: from } }}
               onChange={(e) => {
                 if (e.target.value && e.target.value >= from) go({ to: e.target.value });
               }}
-              style={dateInputStyle}
+              sx={{ ...fieldSx, minWidth: { xs: 0, sm: 152 }, flex: { xs: 1, sm: "0 0 auto" } }}
             />
           </Box>
         )}
       </Box>
 
-      {/* Loading feedback */}
       <Fade in={isPending} unmountOnExit>
-        <Box
-          sx={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 0.75,
-            px: 0.75,
-            py: 0.25,
-            borderRadius: "6px",
-            bgcolor: "var(--soft)",
-            color: "var(--leaf)",
-          }}
-        >
-          <CircularProgress size={12} color="inherit" thickness={5} />
-          <Typography sx={{ fontSize: "0.74rem", fontWeight: 700, letterSpacing: "0.02em" }}>
-            Updating…
-          </Typography>
-        </Box>
+        <LinearProgress aria-label="Refreshing results" sx={{ position: "absolute", height: 2, bottom: -1, left: 8, right: 8, borderRadius: 1, bgcolor: "transparent", "& .MuiLinearProgress-bar": { bgcolor: "var(--leaf)" } }} />
       </Fade>
     </Box>
   );

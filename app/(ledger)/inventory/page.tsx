@@ -31,7 +31,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   try { inventoryScope(category, variant); } catch { notFound(); }
   const stockRows = await retryRead(() => inventoryDays(range, category));
   const groups = stockSeries(stockRows);
-  const selected = variant ?? (groups.length === 1 ? groups[0].id : undefined);
+  const selected = variant && groups.some(group => group.id === variant) ? variant : (groups.length === 1 ? groups[0].id : undefined);
   const matches = (row: {category: string; particular: string; unit: string}) => !selected || JSON.stringify([row.category, row.category === "fuel" ? "" : row.particular.trim(), row.unit]) === selected;
   const listing = await retryRead(() => entryPage("inventory", range, tableRequest(params), category, selected));
   const rows = await prisma.inventoryEntry.findMany({ where: { id: { in: listing.ids } }, include: { report: { select: { date: true } } }, orderBy: [{ report: { date: "desc" } }, { position: "asc" }, { id: "asc" }] });
