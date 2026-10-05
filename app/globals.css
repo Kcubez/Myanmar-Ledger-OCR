@@ -283,8 +283,9 @@ select { color:var(--ink); background:#fff; border:1px solid var(--line); paddin
  .record-summary strong { font-size:.85rem; text-align:right; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
  .mobile-record summary { cursor:pointer; font-size:.78rem; color:var(--accent,#8057c7); padding-top:12px; }
  .mobile-record dl { margin:12px 0 0; }
- .mobile-record dl > div { display:flex; justify-content:space-between; gap:10px; padding:7px 0; }
- .mobile-record dd { margin:0; text-align:right; font-size:.8rem; }
+ .mobile-record dl > div { display:grid; grid-template-columns:minmax(72px, .32fr) minmax(0, .68fr); gap:10px; align-items:start; padding:7px 0; }
+ .mobile-record dd { min-width:0; margin:0; text-align:right; font-size:.8rem; overflow-wrap:anywhere; word-break:break-word; }
+ .mobile-record dd .row-actions { justify-content:flex-end; }
  .mobile-record button { min-height:44px; }
  .page-size { display:none; }
  .table-tools input { width:100%; }
