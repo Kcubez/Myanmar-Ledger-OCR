@@ -154,8 +154,9 @@ export type GeminiPart =
  *   at the deadline. Timeout retries use only the remaining budget.
  * - Model overload gets bounded exponential-backoff retries on the same key
  *   before failover. This avoids needlessly consuming healthy key slots during
- *   a short provider-capacity spike; at most two overloaded key slots are used.
- *   Quota/key errors can still try all configured projects within the budget.
+ *   a short provider-capacity spike; then each configured key is tried in order
+ *   within the shared 90-second deadline.
+ *   Quota/key errors also try all configured projects within the budget.
  * - Throws TerminalExtractError immediately for anything else.
  * - Throws RetryableExhaustedError when every key failed retryably.
  */
@@ -177,10 +178,11 @@ export async function extractWithKeyRotation<T>(options: {
   const timeoutMs = options.timeoutMs ?? 90_000;
   const timeoutRetries = options.timeoutRetries ?? 1;
   const deadline = Date.now() + (options.totalTimeoutMs ?? 90_000);
-  let overloadedFailures = 0;
   let retryableFailure = false;
   const attempts: ExtractAttempt[] = [];
-  const overloadRetriesPerKey = 2;
+  // One same-key retry absorbs short provider spikes while leaving enough of
+  // the shared 90s budget to reach every configured key.
+  const overloadRetriesPerKey = 1;
   const delayForRetry = options.retryDelayMs ?? ((retry: number) => {
     const base = Math.min(8_000, 1_000 * 2 ** (retry - 1));
     return Math.round(base * (0.8 + Math.random() * 0.4));
@@ -258,7 +260,6 @@ export async function extractWithKeyRotation<T>(options: {
             if (retryInMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, retryInMs));
             if (Date.now() < deadline) continue;
           }
-          if (++overloadedFailures >= 2) break rotation;
         }
         break; // next key after the bounded same-key retry policy
       }

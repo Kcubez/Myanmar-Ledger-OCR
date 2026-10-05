@@ -579,7 +579,7 @@ async function processPhoto(
 
   const extracted = await extractByType(keys, model, base64, mode, async ({ retry, retryInMs }) => {
     const seconds = Math.max(1, Math.ceil(retryInMs / 1_000));
-    await updateProgress(`⏳ Model အလုပ်များနေပါတယ် — ${seconds} စက္ကန့်နောက် အလိုအလျောက် ပြန်စမ်းနေပါတယ် (${retry}/2)…`);
+    await updateProgress(`⏳ Model အလုပ်များနေပါတယ် — ${seconds} စက္ကန့်နောက် အလိုအလျောက် ပြန်စမ်းနေပါတယ် (${retry}/1)…`);
   });
   if (extracted && "exhausted" in extracted) {
     // All keys failed retryably — tell staff WHY (quota vs overload vs bad
