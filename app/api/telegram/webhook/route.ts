@@ -21,7 +21,7 @@ import {
   processingFailedMessage,
   waitingForApprovalMessage,
   submitterRejectedMessage,
-  buildExtractPreviewMessage,
+  buildExtractPreviewMessages,
   buildLedgerMenuButtons,
   buildLinkKeyboard,
   getFormatPromptForMode,
@@ -577,7 +577,10 @@ async function processPhoto(
   }
   const base64 = main.toString("base64");
 
-  const extracted = await extractByType(keys, model, base64, mode);
+  const extracted = await extractByType(keys, model, base64, mode, async ({ retry, retryInMs }) => {
+    const seconds = Math.max(1, Math.ceil(retryInMs / 1_000));
+    await updateProgress(`⏳ Model အလုပ်များနေပါတယ် — ${seconds} စက္ကန့်နောက် အလိုအလျောက် ပြန်စမ်းနေပါတယ် (${retry}/2)…`);
+  });
   if (extracted && "exhausted" in extracted) {
     // All keys failed retryably — tell staff WHY (quota vs overload vs bad
     // key) instead of a generic "try later". Detail chain is in Vercel logs.
@@ -639,23 +642,30 @@ async function processPhoto(
     return { report: rep, ...counts };
   });
 
-  const summaryMsg = await sendTelegramMessage({
-    botToken,
-    chatId,
-    text: buildExtractPreviewMessage({
+  const previews = buildExtractPreviewMessages({
       summary: extracted.summary,
       dateKey: key,
       mode,
       lines: extracted.lines,
       unreadableFields: extracted.flags,
-    }),
-    replyMarkup: {
-      inline_keyboard: [[
-        { text: "✅ Confirm", callback_data: `confirm:${report.id}` },
-        { text: "❌ Reject", callback_data: `reject:${report.id}` },
-      ]],
-    },
   });
+  let summaryMsg: { message_id: number } | null = null;
+  for (const [index, text] of previews.entries()) {
+    const isFinalPreview = index === previews.length - 1;
+    const sent = await sendTelegramMessage({
+      botToken,
+      chatId,
+      text,
+      ...(isFinalPreview
+        ? { replyMarkup: { inline_keyboard: [[
+          { text: "✅ Confirm", callback_data: `confirm:${report.id}` },
+          { text: "❌ Reject", callback_data: `reject:${report.id}` },
+        ]] } }
+        : {}),
+    });
+    if (!sent) break;
+    if (isFinalPreview) summaryMsg = sent;
+  }
   await updateProgress(summaryMsg ? processingCompleteMessage : processingFailedMessage);
   // Remember the bot's reply so approval flows can edit it in place later.
   if (summaryMsg) {
@@ -671,12 +681,13 @@ async function extractByType(
   model: string,
   base64: string,
   mode: LedgerType,
+  onRetry?: (info: { retry: number; retryInMs: number }) => Promise<void>,
 ): Promise<(ExtractedPayload & { terminal?: false }) | { terminal: true } | { exhausted: true; reason: ExtractReason }> {
   const parts = (prompt: string) => [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64 } }];
   try {
     switch (mode) {
       case "inventory": {
-        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(inventoryPrompt()), parse: parseInventoryResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, onRetry, parts: parts(inventoryPrompt()), parse: parseInventoryResponse });
         return {
           contentDateText: result.data.date, rawText: "", persistKind: mode,
           sheetKind: result.data.sheetKind, lines: result.data.rows,
@@ -685,7 +696,7 @@ async function extractByType(
         };
       }
       case "revenue": {
-        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(revenuePrompt()), parse: parseRevenueResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, onRetry, parts: parts(revenuePrompt()), parse: parseRevenueResponse });
         const total = result.data.total || "—";
         return {
           contentDateText: result.data.date, rawText: "", persistKind: mode, lines: result.data.lines,
@@ -695,7 +706,7 @@ async function extractByType(
         };
       }
       case "expense": {
-        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(expensePrompt()), parse: parseExpenseResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, onRetry, parts: parts(expensePrompt()), parse: parseExpenseResponse });
         return {
           contentDateText: result.data.date, rawText: "", persistKind: mode,
           lines: { header: result.data, wages: result.data.wages },
@@ -704,7 +715,7 @@ async function extractByType(
         };
       }
       case "maintenance": {
-        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(maintenancePrompt()), parse: parseMaintenanceResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, onRetry, parts: parts(maintenancePrompt()), parse: parseMaintenanceResponse });
         return {
           contentDateText: result.data.date, rawText: "", persistKind: mode, lines: result.data.lines,
           confidence: result.confidence, flags: result.unreadable_fields,
@@ -712,7 +723,7 @@ async function extractByType(
         };
       }
       case "fuel": {
-        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(fuelPrompt()), parse: parseFuelResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, onRetry, parts: parts(fuelPrompt()), parse: parseFuelResponse });
         const bad = result.data.rows.filter((row: { balance_ok: boolean | null }) => row.balance_ok === false).length;
         return {
           contentDateText: result.data.rows[0]?.date ?? "", rawText: "", persistKind: mode, lines: result.data.rows,
@@ -721,7 +732,7 @@ async function extractByType(
         };
       }
       case "brick": {
-        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, parts: parts(brickPrompt()), parse: parseBrickResponse });
+        const { result } = await extractWithKeyRotation({ keys, model, diagnosticLabel: mode, onRetry, parts: parts(brickPrompt()), parse: parseBrickResponse });
         const suspect =
           result.unreadable_fields.includes("row_count_suspect") ||
           result.unreadable_fields.includes("duplicate_rows");

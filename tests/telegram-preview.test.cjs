@@ -2,7 +2,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const load = require("./load-ts.cjs");
 
-const { buildExtractPreviewMessage, buildLinkKeyboard } = load("lib/telegram/templates.ts", {
+const { buildExtractPreviewMessage, buildExtractPreviewMessages, buildLinkKeyboard } = load("lib/telegram/templates.ts", {
   "../extract": { LEDGER_TYPES: ["inventory", "revenue", "expense", "maintenance"] },
 });
 
@@ -14,10 +14,26 @@ test("extraction preview shows inventory rows, escapes content, and stays within
     lines: [{ category: "sand", particular: "<Sand Shwe>", in: "10", out: "2", balance: "8", unit: "sud" }],
     unreadableFields: [],
   });
-  assert.match(text, /<b>sand<\/b>/);
+  assert.match(text, /\(sand\)/);
   assert.match(text, /&lt;Sand Shwe&gt;/);
+  assert.doesNotMatch(text, /gal gal/);
   assert.match(text, /Confirm sends this upload to the dashboard/);
   assert.ok(text.length <= 3500);
+});
+
+test("long previews keep every extracted row in readable continuation messages", () => {
+  const rows = Array.from({ length: 50 }, (_, index) => ({
+    category: "fuel", particular: `Vehicle ${index + 1}`, in: "10 gal", out: "3 gal", balance: `${100 - index} gal`, unit: "gal",
+  }));
+  const messages = buildExtractPreviewMessages({
+    summary: "⛽ Inventory · Fuel — 50 rows", dateKey: "2026-10-05", mode: "inventory", lines: rows, unreadableFields: [],
+  });
+  assert.ok(messages.length > 1);
+  assert.ok(messages.every((message) => message.length <= 3400));
+  const combined = messages.join("\n");
+  assert.match(combined, /Vehicle 1/);
+  assert.match(combined, /Vehicle 50/);
+  assert.match(messages.at(-1), /Confirm sends this upload/);
 });
 
 test("link keyboard exposes a one-tap /link command", () => {

@@ -85,64 +85,107 @@ export function buildExtractSummaryMessage(opts: {
  * Compact, human-readable extraction preview for Telegram.  It is deliberately
  * capped so Telegram's 4096 character message limit cannot hide the actions.
  */
-export function buildExtractPreviewMessage(opts: {
+type ExtractPreviewOptions = {
   summary: string;
   dateKey: string;
   mode: LedgerType;
   lines: unknown;
   unreadableFields: string[];
-}): string {
+};
+
+function previewQuantity(input: unknown, unit: string, value: (input: unknown) => string): string {
+  const raw = String(input ?? "").trim();
+  if (!raw || /^[-–—]$/.test(raw)) return "—";
+  const withoutUnit = raw.replace(/\s*(?:sud|sub|bags?|nos|gal(?:lons?)?|ကျင်း|လုံး|အိတ်)\s*$/i, "").trim();
+  return `${value(withoutUnit || raw)} ${unit}`;
+}
+
+function buildPreviewRows(opts: ExtractPreviewOptions, value: (input: unknown) => string): string[] {
   const rows = Array.isArray(opts.lines) ? opts.lines : [];
-  // Bound each source field before escaping it. This keeps the complete HTML
-  // structure intact (unlike slicing an already-formatted Telegram message).
+  if (opts.mode === "inventory" || opts.mode === "fuel" || opts.mode === "brick") {
+    return rows.map((entry, index) => {
+      const row = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+      const unit = value(row.unit);
+      const title = opts.mode === "inventory" && String(row.category).toLowerCase() !== "fuel"
+        ? `${value(row.particular)} <i>(${value(row.category)})</i>`
+        : value(row.particular);
+      const remark = String(row.remark ?? "").trim();
+      return [
+        `<b>${index + 1}. ${title}</b>`,
+        `In: ${previewQuantity(row.in, unit, value)}   ·   Out: ${previewQuantity(row.out, unit, value)}`,
+        `Balance: <b>${previewQuantity(row.balance, unit, value)}</b>`,
+        remark ? `Remark: ${value(remark)}` : "",
+      ].filter(Boolean).join("\n");
+    });
+  }
+  if (opts.mode === "revenue") {
+    return rows.map((entry, index) => {
+      const row = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+      return `<b>${index + 1}. ${value(row.method)}</b>\nAmount: <b>${value(row.amount)} Ks</b>`;
+    });
+  }
+  if (opts.mode === "maintenance") {
+    return rows.map((entry, index) => {
+      const row = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+      return `<b>${index + 1}. ${value(row.vehicle)}</b>\nMaintenance task: ${value(row.part)}\nAmount: <b>${value(row.amount)} Ks</b>`;
+    });
+  }
+  if (opts.mode === "expense") {
+    const data = opts.lines && typeof opts.lines === "object" ? opts.lines as Record<string, unknown> : {};
+    const header = data.header && typeof data.header === "object" ? data.header as Record<string, unknown> : {};
+    const wages = Array.isArray(data.wages) ? data.wages : [];
+    return [
+      `<b>Expense summary</b>\nTotal: <b>${value(header.total)} Ks</b>\nBusiness: ${value(header.business_drawing)} Ks\nPersonal: ${value(header.personal_drawing)} Ks\nOperation: ${value(header.operation)} Ks`,
+      ...wages.map((entry, index) => {
+        const wage = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+        return `<b>Wage ${index + 1}. ${value(wage.name)}</b>\nAmount: <b>${value(wage.amount)} Ks</b>`;
+      }),
+    ];
+  }
+  return ["—"];
+}
+
+export function buildExtractPreviewMessages(opts: ExtractPreviewOptions): string[] {
+  // Bound each source field before escaping it. This keeps complete Telegram
+  // HTML tags intact while still making every extracted row reviewable.
   const value = (input: unknown) => {
     const raw = String(input ?? "").trim() || "—";
     return escapeHtml(raw.length > 48 ? `${raw.slice(0, 47)}…` : raw);
   };
-  const showRows = (items: unknown[], makeLine: (row: Record<string, unknown>) => string) => {
-    const visible = items.slice(0, 8).map((row) => makeLine((row && typeof row === "object" ? row : {}) as Record<string, unknown>));
-    const more = items.length > visible.length ? `\n… and ${items.length - visible.length} more row(s)` : "";
-    return visible.length ? `${visible.join("\n")}${more}` : "—";
-  };
-
-  let details = "—";
-  if (opts.mode === "inventory" || opts.mode === "fuel" || opts.mode === "brick") {
-    details = showRows(rows, (row) => {
-      const unit = value(row.unit);
-      return `• <b>${value(row.category)}</b> · ${value(row.particular)}\n  In ${value(row.in)} · Out ${value(row.out)} · Balance ${value(row.balance)} ${unit}`;
-    });
-  } else if (opts.mode === "revenue") {
-    details = showRows(rows, (row) => `• ${value(row.method)} — <b>${value(row.amount)} Ks</b>`);
-  } else if (opts.mode === "maintenance") {
-    details = showRows(rows, (row) => `• <b>${value(row.vehicle)}</b> · ${value(row.part)} — ${value(row.amount)} Ks`);
-  } else if (opts.mode === "expense") {
-    const data = opts.lines && typeof opts.lines === "object" ? opts.lines as Record<string, unknown> : {};
-    const header = data.header && typeof data.header === "object" ? data.header as Record<string, unknown> : {};
-    const wages = Array.isArray(data.wages) ? data.wages : [];
-    details = [
-      `• Total — <b>${value(header.total)} Ks</b>`,
-      `• Business ${value(header.business_drawing)} · Personal ${value(header.personal_drawing)} · Operation ${value(header.operation)} Ks`,
-      wages.length ? "<b>Wages</b>\n" + showRows(wages, (row) => `• ${value(row.name)} — ${value(row.amount)} Ks`) : "",
-    ].filter(Boolean).join("\n");
-  }
-
-  const warning = opts.unreadableFields.length
-    ? "\n\n⚠️ Some values may need review in the dashboard."
-    : "";
+  const heading = [
+    "<b>Review extracted data / ဖတ်ယူထားသောအချက်အလက်</b>",
+    opts.summary,
+    `<b>Date:</b> ${escapeHtml(opts.dateKey)}`,
+  ].join("\n");
+  const rows = buildPreviewRows(opts, value);
+  const warning = opts.unreadableFields.length ? "⚠️ Some values may need review in the dashboard." : "";
   const reviewNote = opts.mode === "inventory"
     ? "This replaces only the matching same-date inventory sheet after dashboard approval."
     : "This replaces the matching same-date ledger after dashboard approval.";
-  return [
-    "<b>Extracted preview / ဖတ်ယူထားသောအချက်အလက်</b>",
-    opts.summary,
-    `<b>Date:</b> ${escapeHtml(opts.dateKey)}`,
-    "",
-    details,
-    warning,
-    "",
-    reviewNote,
-    "Confirm sends this upload to the dashboard for final approval.",
-  ].join("\n");
+  const footer = [warning, reviewNote, "Confirm sends this upload to the dashboard for final approval."].filter(Boolean).join("\n");
+  const limit = 3400;
+  const messages: string[] = [];
+  let current = heading;
+  for (const row of rows) {
+    const next = `${current}\n\n${row}`;
+    if (next.length > limit && current !== heading) {
+      messages.push(current);
+      current = `<b>Extracted data — continued</b>\n\n${row}`;
+    } else {
+      current = next;
+    }
+  }
+  if (`${current}\n\n${footer}`.length > limit && current !== heading) {
+    messages.push(current);
+    current = "<b>Review extracted data — final</b>";
+  }
+  messages.push(`${current}\n\n${footer}`);
+  return messages;
+}
+
+/** Convenience form used by unit tests and callers that need one short preview. */
+export function buildExtractPreviewMessage(opts: ExtractPreviewOptions): string {
+  return buildExtractPreviewMessages(opts)[0] ?? "";
 }
 
 export function getLinkInstructions(): string {

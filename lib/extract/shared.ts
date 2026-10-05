@@ -152,7 +152,9 @@ export type GeminiPart =
  * - Continues to the next key only on retryable (quota/rate-limit/key) errors.
  * - Total Gemini time is bounded to 90s, including retries. Requests are aborted
  *   at the deadline. Timeout retries use only the remaining budget.
- * - Model overload rotates immediately; stop after two overloaded projects.
+ * - Model overload gets bounded exponential-backoff retries on the same key
+ *   before failover. This avoids needlessly consuming healthy key slots during
+ *   a short provider-capacity spike; at most two overloaded key slots are used.
  *   Quota/key errors can still try all configured projects within the budget.
  * - Throws TerminalExtractError immediately for anything else.
  * - Throws RetryableExhaustedError when every key failed retryably.
@@ -166,6 +168,10 @@ export async function extractWithKeyRotation<T>(options: {
   timeoutRetries?: number;
   totalTimeoutMs?: number;
   diagnosticLabel?: string;
+  /** Called before an overload retry, for user-facing progress updates. */
+  onRetry?: (info: { reason: "overloaded"; slot: number; retry: number; retryInMs: number }) => void | Promise<void>;
+  /** Test hook; production uses a jittered exponential delay. */
+  retryDelayMs?: (retry: number) => number;
   parse: (text: string) => T;
 }): Promise<{ result: T; usedKey: UsedKey }> {
   const timeoutMs = options.timeoutMs ?? 90_000;
@@ -174,6 +180,11 @@ export async function extractWithKeyRotation<T>(options: {
   let overloadedFailures = 0;
   let retryableFailure = false;
   const attempts: ExtractAttempt[] = [];
+  const overloadRetriesPerKey = 2;
+  const delayForRetry = options.retryDelayMs ?? ((retry: number) => {
+    const base = Math.min(8_000, 1_000 * 2 ** (retry - 1));
+    return Math.round(base * (0.8 + Math.random() * 0.4));
+  });
   rotation: for (const [index, key] of options.keys.entries()) {
     let attempt = 0;
 
@@ -233,8 +244,23 @@ export async function extractWithKeyRotation<T>(options: {
           `Gemini key slot ${index + 1} failed (${classified.code} ${classified.reason})`,
         );
         retryableFailure = true;
-        if (classified.reason === "overloaded" && ++overloadedFailures >= 2) break rotation;
-        break; // next key — `continue` here would spin the inner retry loop forever
+        if (classified.reason === "overloaded") {
+          const retriesUsed = attempt - 1;
+          if (retriesUsed < overloadRetriesPerKey) {
+            const remaining = deadline - Date.now();
+            const retryInMs = Math.min(delayForRetry(retriesUsed + 1), Math.max(0, remaining));
+            try {
+              await options.onRetry?.({ reason: "overloaded", slot: index + 1, retry: retriesUsed + 1, retryInMs });
+            } catch (progressError) {
+              // A Telegram edit is optional observability; it must not cancel extraction.
+              console.error("Gemini retry progress update failed", progressError);
+            }
+            if (retryInMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, retryInMs));
+            if (Date.now() < deadline) continue;
+          }
+          if (++overloadedFailures >= 2) break rotation;
+        }
+        break; // next key after the bounded same-key retry policy
       }
       throw new TerminalExtractError("Could not extract this image. Please try another image.");
       } // end catch
