@@ -48,6 +48,12 @@ export function parseMaintenanceResponse(text: string): MaintenanceParseResult {
   const unreadable: string[] = [];
   if (!data.date) unreadable.push("date");
   if (lines.length === 0) unreadable.push("lines");
+  lines.forEach((line, index) => {
+    if (!line.vehicle) unreadable.push(`lines[${index}].vehicle`);
+    // An empty amount is not zero. Keeping it explicit prevents persistence
+    // from silently turning an unreadable handwritten value into 0 Ks.
+    if (!line.amount) unreadable.push(`lines[${index}].amount`);
+  });
   const confidence = lines.length === 0 ? 0.2 : 0.85;
   return { data, confidence, unreadable_fields: unreadable };
 }

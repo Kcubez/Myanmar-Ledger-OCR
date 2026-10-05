@@ -53,7 +53,7 @@ export default async function MaintenancePage({
         actions={<><DateFilter /><DeleteRangeButton kind="maintenance" kindLabel="maintenance" count={entryCount} scopeLabel={range.label} gte={range.gte?.toISOString() ?? null} lte={range.lte?.toISOString() ?? null} /></>}
       />
 
-      <section className="stats" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))" }} aria-label="Maintenance totals">
+      <section className="stats stats-2" aria-label="Maintenance totals">
         <StatCard label="Total spend" value={`${Math.round(totalSpend).toLocaleString()} Ks`} sub={`${entryCount} lines · ${range.label}`} tone="bad" icon="wrench" />
         <StatCard label="Lines" value={`${entryCount}`} sub={range.label} icon="list" />
       </section>

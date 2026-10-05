@@ -31,10 +31,13 @@ const EMPTY: ExpenseData = {
 
 /** Recognize an exact labour subtotal without altering the source values. */
 export function operationIsWageSubtotal(data: Pick<ExpenseData, "total" | "business_drawing" | "personal_drawing" | "operation" | "wages">): boolean {
-  if (!data.total || !data.operation || !data.business_drawing || !data.personal_drawing || !data.wages.length || data.wages.some(w => !w.amount)) return false;
+  // Drawings are optional fields on some source sheets. Treat a blank one as
+  // zero for this comparison; requiring both made a wages-only sheet count
+  // its printed Operation subtotal and its detail rows twice.
+  if (!data.total || !data.operation || !data.wages.length || data.wages.some(w => !w.amount)) return false;
   const labour = data.wages.reduce((sum, w) => sum + amountFrom(w.amount), 0);
   return labour === amountFrom(data.operation) &&
-    amountFrom(data.total) === amountFrom(data.business_drawing) + amountFrom(data.personal_drawing) + labour;
+    amountFrom(data.total) === amountFrom(data.business_drawing || "0") + amountFrom(data.personal_drawing || "0") + labour;
 }
 
 export function expensePrompt(): string {

@@ -1,7 +1,13 @@
 import type { Prisma } from "../generated/prisma/client";
+import { inventoryRowRevision, wageRowRevision } from "./row-revision";
 
 type Tx = Prisma.TransactionClient;
 export class RowEditError extends Error {}
+export class RowEditConflictError extends Error {}
+export function expectedRowRevision(value: unknown) {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) throw new RowEditError("Refresh this row before editing it.");
+  return value;
+}
 export function inventoryPatch(body: Record<string, unknown>) {
   if (typeof body.particular !== "string" || !body.particular.trim() || body.particular.length > 500
     || typeof body.remark !== "string" || body.remark.length > 2000) throw new RowEditError("Enter a particular and a remark of at most 2,000 characters.");
@@ -15,9 +21,10 @@ export function wagePatch(body: Record<string, unknown>) {
   if (typeof body.name !== "string" || !body.name.trim() || body.name.length > 500 || typeof body.amount !== "number" || !Number.isSafeInteger(body.amount) || body.amount < 0) throw new RowEditError("Enter a name and a nonnegative whole-kyat amount.");
   return { name: body.name.trim(), amount: BigInt(body.amount) };
 }
-export async function changeInventoryRow(tx: Tx, id: string, patch: ReturnType<typeof inventoryPatch> | null) {
+export async function changeInventoryRow(tx: Tx, id: string, patch: ReturnType<typeof inventoryPatch> | null, expectedRevision: string) {
   const row = await tx.inventoryEntry.findFirst({ where: { id, report: { status: "CONFIRMED" } } });
   if (!row) throw new RowEditError("Approved inventory row no longer exists. Refresh and try again.");
+  if (inventoryRowRevision(row) !== expectedRevision) throw new RowEditConflictError("This row changed in another tab. Refresh before editing it again.");
   if (patch) await tx.inventoryEntry.update({ where: { id }, data: patch });
   else await tx.inventoryEntry.delete({ where: { id } });
   if (row.sheetKind === "fuel") {
@@ -31,9 +38,10 @@ export async function changeInventoryRow(tx: Tx, id: string, patch: ReturnType<t
     }
   }
 }
-export async function changeWageRow(tx: Tx, id: string, patch: ReturnType<typeof wagePatch> | null) {
+export async function changeWageRow(tx: Tx, id: string, patch: ReturnType<typeof wagePatch> | null, expectedRevision: string) {
   const row = await tx.expenseLine.findFirst({ where: { id, category: "WAGES", report: { status: "CONFIRMED" } } });
   if (!row) throw new RowEditError("Approved wages row no longer exists. Refresh and try again.");
+  if (wageRowRevision(row) !== expectedRevision) throw new RowEditConflictError("This row changed in another tab. Refresh before editing it again.");
   if (patch) await tx.expenseLine.update({ where: { id }, data: patch });
   else await tx.expenseLine.delete({ where: { id } });
   const total = await tx.expenseLine.aggregate({ where: { reportId: row.reportId }, _sum: { amount: true } });

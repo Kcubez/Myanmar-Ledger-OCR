@@ -67,7 +67,7 @@ export default async function ExpensePage({
         }
       />
 
-      <section className="stats" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }} aria-label="Expense totals">
+      <section className="stats stats-3" aria-label="Expense totals">
         <StatCard label="Total expense" value={`${Math.round(total).toLocaleString()} Ks`} sub={`${dayCount} days · ${range.label}`} tone="bad" icon="trend-down" />
         <StatCard label="Total wages" value={`${Math.round(totalWages).toLocaleString()} Ks`} sub={`${wageRows} rows · ${range.label}`} icon="clock" />
         <StatCard label="Days" value={`${dayCount}`} sub={range.label} icon="calendar" />

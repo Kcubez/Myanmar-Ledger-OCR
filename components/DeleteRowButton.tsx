@@ -9,7 +9,7 @@ import { useToast } from "./ToastProvider";
  * Single-row delete for list pages (fuel, maintenance). Confirms via Modal,
  * issues DELETE to the given URL, then refreshes the server page.
  */
-export function DeleteRowButton({ deleteUrl, label }: { deleteUrl: string; label: string }) {
+export function DeleteRowButton({ deleteUrl, label, expectedRevision }: { deleteUrl: string; label: string; expectedRevision?: string }) {
   const router = useRouter();
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
@@ -18,12 +18,12 @@ export function DeleteRowButton({ deleteUrl, label }: { deleteUrl: string; label
   async function onConfirm() {
     setBusy(true);
     try {
-      const response = await fetch(deleteUrl, { method: "DELETE" });
-      if (!response.ok) throw new Error("Delete failed.");
+      const response = await fetch(deleteUrl, expectedRevision ? { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision }) } : { method: "DELETE" });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || "Delete failed.");
       setConfirming(false);
       router.refresh();
-    } catch {
-      toast.error("Delete failed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Delete failed.");
     } finally {
       setBusy(false);
     }

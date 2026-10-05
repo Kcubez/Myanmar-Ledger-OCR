@@ -33,12 +33,13 @@ function TablePages({ children, className, searchable, searchPlaceholder = "Sear
     else url.delete(queryParam);
     startTransition(() => router.replace(`${pathname}?${url}`, { scroll: false }));
   }, [searchParams, pageParam, queryParam, pathname, router]);
-  const needsSearch = Boolean(pagination && editing && query.trim() !== serverQuery);
+  const normalizedQuery = query.trim().slice(0, 100);
+  const needsSearch = Boolean(pagination && editing && normalizedQuery !== serverQuery);
   useEffect(() => {
     if (!needsSearch || composing) return;
-    const timer = setTimeout(() => navigate(0, query.trim()), 350);
+    const timer = setTimeout(() => navigate(0, normalizedQuery), 350);
     return () => clearTimeout(timer);
-  }, [needsSearch, composing, query, navigate]);
+  }, [needsSearch, composing, normalizedQuery, navigate]);
   const size = 10;
   const root = useRef<HTMLDivElement>(null);
   const parts = Children.toArray(children);
@@ -49,7 +50,7 @@ function TablePages({ children, className, searchable, searchPlaceholder = "Sear
   const total = pagination?.total ?? rows.length;
   const last = Math.max(0, Math.ceil(total / size) - 1), current = pagination ? pagination.page - 1 : Math.min(page, last);
   const visible = pagination ? rows : rows.slice(current * size, current * size + size);
-  function move(next: number) { if (pagination) navigate(next, query.trim()); else setPage(next); root.current?.scrollIntoView({ block:"start", behavior:"smooth" }); }
+  function move(next: number) { if (pagination) navigate(next, normalizedQuery); else setPage(next); root.current?.scrollIntoView({ block:"start", behavior:"smooth" }); }
   const updating = pending || needsSearch;
   return <div ref={root} className="paginated-records" aria-busy={updating}>
     {(title || searchable) && <div className="table-header-row">
@@ -57,7 +58,7 @@ function TablePages({ children, className, searchable, searchPlaceholder = "Sear
       {searchable && <form className="table-tools" onSubmit={event => { event.preventDefault(); }}>
         <label className="table-search">
           <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
-          <input type="text" role="searchbox" aria-label={searchPlaceholder} placeholder={searchPlaceholder} value={query} autoComplete="off" onCompositionStart={() => setComposing(true)} onCompositionEnd={() => setComposing(false)} onChange={event => { setQuery(event.target.value); setEditing(true); setPage(0); }} />
+          <input type="text" role="searchbox" aria-label={searchPlaceholder} placeholder={searchPlaceholder} value={query} maxLength={100} autoComplete="off" onCompositionStart={() => setComposing(true)} onCompositionEnd={() => setComposing(false)} onChange={event => { setQuery(event.target.value.slice(0, 100)); setEditing(true); setPage(0); }} />
           {query && <button type="button" className="table-search-clear" aria-label="Clear search" onClick={() => { setQuery(""); setEditing(true); setPage(0); }}>×</button>}
         </label>
       </form>}

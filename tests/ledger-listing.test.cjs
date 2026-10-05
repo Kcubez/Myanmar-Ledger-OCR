@@ -30,3 +30,7 @@ test('wages and daily expense have independent page and search URL fields',()=>{
   assert.equal(tableRequest(params).page,3);assert.equal(tableRequest(params,'wage').page,2);
   assert.equal(tableRequest(params,'wage').query,'Driver');assert.equal(tableRequest({page:'-1'}).page,1);
 });
+test('search input state uses the same 100-character bound as server pagination', () => {
+  const query = 'x'.repeat(101);
+  assert.equal(tableRequest({ query }).query.length, 100);
+});

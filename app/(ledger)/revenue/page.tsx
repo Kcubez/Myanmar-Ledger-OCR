@@ -68,7 +68,7 @@ export default async function RevenuePage({
         }
       />
 
-      <section className="stats" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))" }} aria-label="Revenue totals">
+      <section className="stats stats-2" aria-label="Revenue totals">
         <StatCard label="Total revenue" value={`${Math.round(total).toLocaleString()} Ks`} sub={`${dayCount} days · ${range.label}`} tone="good" icon="trend-up" />
         <StatCard label="Days" value={`${dayCount}`} sub={range.label} icon="calendar" />
       </section>

@@ -171,11 +171,11 @@ export function StatCard({
 
       }}
     >
-      <CardContent sx={{ p: { xs: "18px 14px", sm: "24px" }, "&:last-child": { pb: "24px" } }}>
+      <CardContent sx={{ p: { xs: "14px 12px", sm: "24px" }, "&:last-child": { pb: { xs: "16px", sm: "24px" } }, display: "flex", flexDirection: "column", gap: { xs: "6px", sm: "8px" } }}>
         <span className="stat-label-row">
           <Typography
             variant="caption"
-            sx={{ color: "var(--muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}
+            sx={{ color: "var(--muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", lineHeight: 1.25, fontSize: { xs: ".68rem", sm: ".75rem" } }}
           >
             {label}
           </Typography>
@@ -190,7 +190,7 @@ export function StatCard({
           component="b"
           sx={{
             display: "block",
-            mt: 2, mb: 1, fontWeight: 650, letterSpacing: "-.04em",
+            m: 0, fontWeight: 650, letterSpacing: "-.04em", lineHeight: 1.25,
             fontSize: { xs: "clamp(1rem, 4.5vw, 1.45rem)", sm: "1.65rem" },
             fontVariantNumeric: "tabular-nums",
             color: "var(--ink)",
@@ -199,7 +199,7 @@ export function StatCard({
           <AnimatedStatValue value={value} />
         </Typography>
         {sub && (
-          <Typography variant="caption" sx={{ color: tone ? TONE_TEXT[tone] : "var(--muted)" }}>
+          <Typography variant="caption" sx={{ color: tone ? TONE_TEXT[tone] : "var(--muted)", lineHeight: 1.4, minHeight: "1.4em" }}>
             {sub}
           </Typography>
         )}
@@ -286,23 +286,8 @@ export function AppShell({ children, role, account }: { children: React.ReactNod
 
   const drawerBody = (
     <Box component="nav" id="ledger-navigation" aria-label="Main navigation" sx={{ p: "18px 14px", display: "flex", flexDirection: "column", gap: 1, height: "100%", color: "#f7f4ff", background: "radial-gradient(ellipse at bottom left, #33213e 0%, transparent 52%), #191720" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 1, pb: 2 }}>
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            flex: "none",
-            display: "grid",
-            placeItems: "center",
-            borderRadius: "10px",
-            bgcolor: "var(--leaf)",
-            color: "#fff",
-            fontWeight: 800,
-          }}
-        >
-          L
-        </Box>
-        <Typography sx={{ fontWeight: 700 }}>Ledger</Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, pb: 2 }}>
+        <Box component="img" src="/company-logo.png" alt="Company logo" sx={{ display: "block", width: 156, height: "auto", maxHeight: 74, objectFit: "contain", objectPosition: "left center" }} />
         {narrow && <IconButton aria-label="Close menu" onClick={() => setOpen(false)} sx={{ ml: "auto", width: 44, height: 44, color: "#fff" }}>×</IconButton>}
       </Box>
       <NavLinks links={links} pathname={pathname} pending={pending} remembered={remembered} onNavigate={() => setOpen(false)} />

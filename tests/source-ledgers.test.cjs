@@ -24,6 +24,14 @@ test('source expense: labour subtotal is counted once, source preserved', () => 
   assert.equal(r.data.wages.length, 8);
   assert.equal(r.unreadable_fields.includes('sum_mismatch'), false);
 });
+test('wages-only sheet still recognizes the printed operation total as its subtotal', () => {
+  const r = parseExpenseResponse(JSON.stringify({
+    date: '21/9/2026', total: '500,000', business_drawing: '', personal_drawing: '', operation: '500,000',
+    wages: [{ name: 'Workers', amount: '500,000' }],
+  }));
+  assert.equal(operationIsWageSubtotal(r.data), true);
+  assert.equal(r.unreadable_fields.includes('sum_mismatch'), false);
+});
 test('separate operating expense remains additive', () => {
   const r = parseExpenseResponse(JSON.stringify({...source,total:'2,000,000'}));
   assert.equal(operationIsWageSubtotal(r.data), false);
@@ -37,6 +45,11 @@ test('mismatched labour subtotal requires review', () => {
 test('missing wage amount is flagged', () => {
   const r = parseExpenseResponse(JSON.stringify({...source,wages:[{name:'Driver',amount:''}]}));
   assert.equal(r.unreadable_fields.includes('wages[0].amount'), true);
+});
+test('missing maintenance amount is flagged', () => {
+  const { parseMaintenanceResponse } = load('lib/extract/maintenance.ts');
+  const r = parseMaintenanceResponse(JSON.stringify({ date: '21/9/2026', lines: [{ vehicle: 'Truck', amount: '', part: 'Engine' }] }));
+  assert.equal(r.unreadable_fields.includes('lines[0].amount'), true);
 });
 test('fuel continuation arithmetic: 321 - 5 = 316; mismatch stays unchanged', () => {
   const { parseFuelResponse } = load('lib/extract/fuel.ts');

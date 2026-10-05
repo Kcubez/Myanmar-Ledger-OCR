@@ -30,12 +30,40 @@ test('empty expense cannot replace live values; explicit zero remains valid', ()
   assert.equal(hasLedgerContent('expense',{header:{},wages:[{name:'Driver',amount:''}]}),false);
   assert.equal(hasLedgerContent('expense',{header:{operation:'0'},wages:[]}),true);
   assert.equal(hasLedgerContent('expense',{header:{},wages:[{name:'Driver',amount:'၅၀၀'}]}),true);
+  assert.equal(hasLedgerContent('maintenance',[{vehicle:'Truck',amount:'250000',part:'Engine'}]),true);
+  assert.equal(hasLedgerContent('maintenance',[{vehicle:'Truck',amount:'',part:'Engine'}]),false);
 });
 test('approval persistence rejects empty expense before deleting live rows',async()=>{
   const {persistLines}=load('lib/persist-ledger.ts',{'./extract':{amountFrom:value=>Number(String(value).replaceAll(',',''))}});
   let deleted=false;
   await assert.rejects(persistLines({expenseLine:{deleteMany:async()=>{deleted=true;}}},'r','expense',{lines:{header:{},wages:[]}},new Date()),/No readable ledger rows/);
   assert.equal(deleted,false);
+});
+test('wages-only subtotal persists once, and unreadable maintenance cannot delete live rows', async () => {
+  const { persistLines } = load('lib/persist-ledger.ts', {
+    './extract': { amountFrom: value => Number(String(value).replaceAll(',', '')) },
+  });
+  let expenseRows = [];
+  let maintenanceDeleted = false;
+  const tx = {
+    expenseLine: {
+      deleteMany: async () => {},
+      createMany: async ({ data }) => { expenseRows = data; },
+    },
+    maintenanceLine: { deleteMany: async () => { maintenanceDeleted = true; } },
+    dailyReport: { update: async () => {} },
+  };
+  await persistLines(tx, 'report', 'expense', {
+    lines: { header: { total: '500,000', business_drawing: '', personal_drawing: '', operation: '500,000' }, wages: [{ name: 'Workers', amount: '500,000' }] },
+  }, new Date());
+  assert.equal(expenseRows.length, 1);
+  assert.equal(expenseRows[0].category, 'WAGES');
+  assert.equal(Number(expenseRows[0].amount), 500000);
+  await assert.rejects(
+    persistLines(tx, 'report', 'maintenance', { lines: [{ vehicle: 'Truck', amount: '', part: 'Engine' }] }, new Date()),
+    /No readable ledger rows/,
+  );
+  assert.equal(maintenanceDeleted, false);
 });
 test('inventory scopes isolate variants and do not narrow shared fuel by vehicle', () => {
   assert.equal(inventoryScope('cement',JSON.stringify(['cement','Alpha','bags'])).particular,'Alpha');

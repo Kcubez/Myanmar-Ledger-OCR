@@ -65,32 +65,7 @@ export function AuthLayout({
           zIndex: 1,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 3 }}>
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              display: "grid",
-              placeItems: "center",
-              borderRadius: "12px",
-              bgcolor: "var(--leaf)",
-              color: "#fff",
-              fontWeight: 800,
-              fontSize: "1.2rem",
-              boxShadow: "0 4px 10px rgba(121, 85, 199, 0.25)",
-            }}
-          >
-            L
-          </Box>
-          <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2, color: "var(--ink)", letterSpacing: "-0.01em" }}>
-              Ledger
-            </Typography>
-            <Typography variant="caption" sx={{ color: "var(--muted)", fontWeight: 500, fontSize: "0.75rem" }}>
-              Management System
-            </Typography>
-          </Box>
-        </Box>
+        <Box component="img" src="/company-logo.png" alt="Company logo" sx={{ display: "block", width: { xs: 172, sm: 190 }, height: "auto", maxHeight: 120, objectFit: "contain", objectPosition: "center", mx: "auto", mb: 3 }} />
 
         <Typography
           sx={{
@@ -137,4 +112,3 @@ export function AuthLayout({
     </Box>
   );
 }
-
