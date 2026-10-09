@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Modal } from "./Modal";
 import { useToast } from "./ToastProvider";
 
-export function ApprovalButtons({ reportId, uploadId }: { reportId: string; uploadId?: string }) {
+export function ApprovalButtons({ reportId, uploadId, disabled = false }: { reportId: string; uploadId?: string; disabled?: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -39,12 +39,12 @@ export function ApprovalButtons({ reportId, uploadId }: { reportId: string; uplo
   }
 
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-      <button type="button" disabled={busy} onClick={() => act("approve")}>
-        ✅ Approve
+    <div className="approval-actions">
+      <button type="button" className="approve-button" disabled={busy || disabled} onClick={() => act("approve")}>
+        <span aria-hidden="true">✓</span> Approve
       </button>
-      <button type="button" className="danger-button" disabled={busy} onClick={() => setConfirmingReject(true)}>
-        ❌ Reject
+      <button type="button" className="reject-button" disabled={busy || disabled} onClick={() => setConfirmingReject(true)} aria-label="Reject pending upload" title="Reject pending upload">
+        <span aria-hidden="true">×</span><span>Reject</span>
       </button>
       <Modal
         open={confirmingReject}

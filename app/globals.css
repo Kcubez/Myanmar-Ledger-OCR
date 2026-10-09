@@ -209,6 +209,51 @@ select { color:var(--ink); background:#fff; border:1px solid var(--line); paddin
 }
 /* Compact variant inside table rows — page headers keep the full 48px. */
 .table-wrap .delete-range-button { min-height:36px; padding:7px 11px; }
+.pending-date { display:inline-flex; align-items:center; gap:16px; margin:8px 0 18px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:#fbfaff; color:var(--ink); }
+.pending-date > span { display:grid; gap:2px; font-weight:700; line-height:1.1; }
+.pending-date small { color:var(--muted); font-size:.68rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+.pending-date input { width:148px; min-height:38px; padding:7px 9px; border:1px solid #d9d2e6; border-radius:8px; background:#fff; font-weight:700; color:var(--ink); }
+.pending-actions,.approval-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.pending-actions { margin:18px 0 10px; padding-top:16px; border-top:1px solid var(--line); }
+.discard-button { background:#fff; color:#756c85; border:1px solid #ddd7e7; }
+.discard-button:hover:not(:disabled) { background:#f6f3fa; color:var(--ink); }
+.save-corrections-button { background:#6e4ab7; box-shadow:0 3px 8px #6e4ab735; }
+.save-corrections-button:hover:not(:disabled),.approve-button:hover:not(:disabled) { filter:brightness(.96); transform:translateY(-1px); }
+.approval-actions { margin-top:2px; }
+.approve-button { display:inline-flex; align-items:center; gap:7px; background:#6e4ab7; box-shadow:0 3px 8px #6e4ab735; }
+.approve-button > span { display:grid; place-items:center; width:17px; height:17px; border-radius:50%; background:#fff; color:#6e4ab7; font-size:.78rem; font-weight:900; }
+.reject-button { display:inline-flex; align-items:center; gap:6px; padding:9px 10px; background:#fff; border:1px solid #f0cdd2; color:#c63647; }
+.reject-button > span:first-child { font-size:1.35rem; line-height:.7; font-weight:400; }
+.reject-button:hover:not(:disabled) { background:#fff4f5; border-color:#e6a8b1; }
+.cell-value { padding:3px 4px; min-height:30px; border-radius:6px; background:transparent; color:inherit; text-align:left; font:inherit; width:100%; }
+.cell-value:hover { color:var(--leaf); background:#f6f2fc; }
+.inline-cell-edit { display:flex; align-items:center; gap:4px; min-width:184px; padding:3px; border-radius:9px; background:#f5f1fb; }
+.inline-cell-edit input { background:#fff; border:1px solid #bca5e8; box-shadow:0 0 0 2px #eee7fa; }
+.inline-cell-edit button,.icon-delete { display:grid; place-items:center; min-height:30px; min-width:30px; padding:5px; border:0; border-radius:6px; background:transparent; transition:background-color .15s ease, color .15s ease, transform .15s ease; }
+.inline-cell-edit svg,.icon-delete svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.icon-save { color:#00a63c; }.icon-save:hover { background:#e9f9ef; color:#008f34; transform:scale(1.08); }
+.icon-cancel,.icon-delete { color:#ff4052; }.icon-cancel:hover,.icon-delete:hover { background:#fff0f2; color:#ed2339; transform:scale(1.08); }
+.table-wrap.pending-editor th.actions,.table-wrap.pending-editor td.actions { width:82px; text-align:center; }
+.table-wrap.pending-editor .icon-delete { width:34px; height:34px; margin:auto; border:0; border-radius:7px; background:transparent; color:#ff4052; }
+.table-wrap.pending-editor .icon-delete:hover { background:#fff0f2; color:#ed2339; }
+button:disabled { cursor:not-allowed; }
+/* Approval corrections stay a compact spreadsheet on phones: swipe sideways
+   rather than turning an inline editor into disconnected card fields. */
+@media(max-width:760px) {
+  .pending-editor.ledger-list { overflow-x:auto; border:1px solid var(--line); }
+  .pending-editor .responsive-ledger { display:table; min-width:760px; }
+  .pending-editor .responsive-ledger thead { position:static; width:auto; height:auto; padding:0; margin:0; overflow:visible; clip-path:none; white-space:normal; }
+  .pending-editor .responsive-ledger tbody { display:table-row-group; }
+  .pending-editor .responsive-ledger tbody tr { display:table-row; border:0; border-radius:0; padding:0; }
+  .pending-editor.ledger-list .responsive-ledger tbody td { display:table-cell; padding:12px; white-space:nowrap; text-align:left; }
+  .pending-editor .responsive-ledger td::before { display:none; }
+}
+@media(max-width:560px) {
+  .pending-date { display:flex; width:100%; justify-content:space-between; }
+  .pending-date input { width:154px; }
+  .pending-actions,.approval-actions { display:grid; grid-template-columns:1fr 1fr; }
+  .pending-actions button,.approval-actions button { justify-content:center; min-height:44px; }
+}
 .delete-range-button:hover:not(:disabled) { background:#fff1f2; border-color:#d798a0; }
 .delete-range-button:disabled { opacity:.45; cursor:not-allowed; }
 .table-pagination { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:12px; padding:14px 4px; font-size:.8rem; color:var(--muted); }
