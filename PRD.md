@@ -85,5 +85,17 @@ sheet kind (materials or fuel) atomically, preserving the other sheet and other
 ledgers. Retakes do not add duplicate movements. Older approved replacements
 cannot overwrite newer approved versions of the same sheet kind.
 Inventory page has date and category filters, source-order detail and units.
+
+## 2026-10-09 — Per-photo date corrections
+
+Each Telegram photo is a durable ledger submission. It has an AI-extracted
+effective date that an owner may correct after approval. A correction moves
+only that submission's live rows and source metadata to the destination daily
+report; it never moves unrelated ledger types submitted for the same day.
+`DailyReport.date` remains unique and is the dashboard/chart grouping key, not
+the owner of a photo's date. A destination may contain different ledger types,
+but a second daily summary of the same type (or inventory sheet kind) is
+rejected rather than merged or overwritten. Historical rows that cannot be
+linked to a single upload remain explicitly non-movable until reviewed.
 Old sender scopes with BOTH fuel and brick migrate to inventory; single legacy
 scope requires owner to explicitly grant inventory to avoid broader access.

@@ -621,13 +621,14 @@ async function processPhoto(
 
     const message = await tx.telegramMessage.findUniqueOrThrow({ where: { chatId_messageId: { chatId, messageId } } });
     await tx.pendingUpload.create({ data: {
-      id: message.id, reportId: rep.id, mode, status: "DRAFT", payload: JSON.parse(JSON.stringify(extracted)),
+      id: message.id, reportId: rep.id, mode, status: "DRAFT", effectiveDate: reportDate, payload: JSON.parse(JSON.stringify(extracted)),
     } });
     const counts = { added: 0, skipped: 0 };
     await tx.sourceImage.create({
       data: {
         reportId: rep.id,
         ledgerType: mode.toUpperCase() as "REVENUE" | "EXPENSE" | "MAINTENANCE" | "FUEL" | "BRICK" | "INVENTORY",
+        submissionId: message.id,
         storagePath: null, // metadata only; no stored image
         thumbnailPath: null,
         telegramFileId: fileId,

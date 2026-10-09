@@ -29,7 +29,7 @@ function brickSig(row: { date: Date; item: string; qty: unknown; unitPrice: unkn
   return [row.date.toISOString().slice(0, 10), row.item, num(row.qty), num(row.unitPrice), num(row.amount)].join("|");
 }
 
-export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, extracted: ExtractedPayload, reportDate: Date): Promise<{ added: number; skipped: number }> {
+export async function persistLines(tx: Tx, reportId: string, submissionId: string, mode: LedgerType, extracted: ExtractedPayload, reportDate: Date): Promise<{ added: number; skipped: number }> {
   if (!hasLedgerContent(mode, extracted.lines)) throw new Error("No readable ledger rows. Reject this upload and resend a clearer photo.");
   const big = (value: string): bigint => BigInt(Math.round(amountFrom(value)));
   switch (mode) {
@@ -39,7 +39,7 @@ export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, e
       const sheetKind = parsed.data.sheetKind;
       await tx.inventoryEntry.deleteMany({ where: { reportId, sheetKind } });
       await tx.inventoryEntry.createMany({ data: parsed.data.rows.map((row, position) => ({
-        reportId, sheetKind, position, category: row.category, particular: row.particular, remark: row.remark || null,
+        reportId, submissionId, sheetKind, position, category: row.category, particular: row.particular, remark: row.remark || null,
         unit: row.unit, quantityIn: inventoryQuantity(row.in), quantityOut: inventoryQuantity(row.out),
         balance: inventoryQuantity(row.balance), balanceOk: row.balance_ok,
       })) });
@@ -51,7 +51,7 @@ export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, e
       if (lines.length) {
         await tx.revenueLine.createMany({
           data: lines.map((line) => ({
-            reportId,
+            reportId, submissionId,
             method: line.method as "CASH" | "KBZ_PAY" | "MMQR" | "KBZ_SPECIAL" | "AYA_SPECIAL",
             amount: big(line.amount),
           })),
@@ -67,14 +67,14 @@ export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, e
         wages: { name: string; amount: string }[];
       };
       await tx.expenseLine.deleteMany({ where: { reportId } });
-      const rows: { reportId: string; category: "BUSINESS_DRAWING" | "PERSONAL_DRAWING" | "OPERATION" | "WAGES"; name: string | null; amount: bigint }[] = [];
-      if (payload.header.business_drawing) rows.push({ reportId, category: "BUSINESS_DRAWING", name: null, amount: big(payload.header.business_drawing) });
-      if (payload.header.personal_drawing) rows.push({ reportId, category: "PERSONAL_DRAWING", name: null, amount: big(payload.header.personal_drawing) });
+      const rows: { reportId: string; submissionId: string; category: "BUSINESS_DRAWING" | "PERSONAL_DRAWING" | "OPERATION" | "WAGES"; name: string | null; amount: bigint }[] = [];
+      if (payload.header.business_drawing) rows.push({ reportId, submissionId, category: "BUSINESS_DRAWING", name: null, amount: big(payload.header.business_drawing) });
+      if (payload.header.personal_drawing) rows.push({ reportId, submissionId, category: "PERSONAL_DRAWING", name: null, amount: big(payload.header.personal_drawing) });
       // Labour detail replaces its matching subtotal, never adds to it.
       const labourSubtotal = operationIsWageSubtotal({ ...payload.header, wages: payload.wages });
-      if (payload.header.operation && !labourSubtotal) rows.push({ reportId, category: "OPERATION", name: null, amount: big(payload.header.operation) });
+      if (payload.header.operation && !labourSubtotal) rows.push({ reportId, submissionId, category: "OPERATION", name: null, amount: big(payload.header.operation) });
       for (const wage of payload.wages) {
-        rows.push({ reportId, category: "WAGES", name: wage.name || null, amount: big(wage.amount) });
+        rows.push({ reportId, submissionId, category: "WAGES", name: wage.name || null, amount: big(wage.amount) });
       }
       if (rows.length) await tx.expenseLine.createMany({ data: rows });
       const total = rows.reduce((sum, row) => sum + Number(row.amount), 0);
@@ -87,7 +87,7 @@ export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, e
       if (lines.length) {
         await tx.maintenanceLine.createMany({
           data: lines.map((line) => ({
-            reportId, vehicle: line.vehicle, amount: big(line.amount),
+            reportId, submissionId, vehicle: line.vehicle, amount: big(line.amount),
             part: line.part || null,
           })),
         });
@@ -103,7 +103,7 @@ export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, e
         const parsed = row.date ? extractContentDate(row.date) : null;
         if (parsed) carry = parsed;
         return {
-          reportId, vehicle: "", particular: row.particular || null,
+          reportId, submissionId, vehicle: "", particular: row.particular || null,
           date: carry ?? reportDate,
           inGal: row.in_gal ? amountFrom(row.in_gal) : null,
           outGal: row.out_gal ? amountFrom(row.out_gal) : null,
@@ -131,7 +131,7 @@ export async function persistLines(tx: Tx, reportId: string, mode: LedgerType, e
         const parsed = row.date ? extractContentDate(row.date) : null;
         if (parsed) carry = parsed;
         return {
-          reportId, item: row.item,
+          reportId, submissionId, item: row.item,
           date: carry ?? reportDate,
           qty: row.qty ? amountFrom(row.qty) : null,
           unitPrice: row.unit_price ? big(row.unit_price) : null,

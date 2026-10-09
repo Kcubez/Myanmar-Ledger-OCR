@@ -74,7 +74,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const current = await tx.dailyReport.findUnique({ where: { id: reportId }, include: editableRelations });
     if (!current || reportRevision(current) !== body.expectedRevision) throw new Error("STALE_REPORT");
     if (Array.isArray(body.revenue)) {
-      const rows = (body.revenue as { method?: string; amount?: unknown }[]).filter((row) =>
+      const rows = (body.revenue as { method?: string; amount?: unknown; submissionId?: unknown }[]).filter((row) =>
         (REVENUE_METHODS as readonly string[]).includes(row.method ?? ""),
       );
       await tx.revenueLine.deleteMany({ where: { reportId } });
@@ -82,6 +82,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         await tx.revenueLine.createMany({
           data: rows.map((row) => ({
             reportId,
+            submissionId: typeof row.submissionId === "string" ? row.submissionId : null,
             method: row.method as (typeof REVENUE_METHODS)[number],
             amount: big(row.amount),
           })),
@@ -90,7 +91,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
 
     if (Array.isArray(body.expense)) {
-      const rows = (body.expense as { category?: string; name?: string; amount?: unknown }[]).filter(
+      const rows = (body.expense as { category?: string; name?: string; amount?: unknown; submissionId?: unknown }[]).filter(
         (row) => (EXPENSE_CATEGORIES as readonly string[]).includes(row.category ?? ""),
       );
       await tx.expenseLine.deleteMany({ where: { reportId } });
@@ -98,6 +99,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         await tx.expenseLine.createMany({
           data: rows.map((row) => ({
             reportId,
+            submissionId: typeof row.submissionId === "string" ? row.submissionId : null,
             category: row.category as (typeof EXPENSE_CATEGORIES)[number],
             name: row.name || null,
             amount: big(row.amount),
@@ -107,12 +109,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
 
     if (Array.isArray(body.maintenance)) {
-      const rows = body.maintenance as { vehicle?: string; amount?: unknown; part?: string }[];
+      const rows = body.maintenance as { vehicle?: string; amount?: unknown; part?: string; submissionId?: unknown }[];
       await tx.maintenanceLine.deleteMany({ where: { reportId } });
       if (rows.length) {
         await tx.maintenanceLine.createMany({
           data: rows.map((row) => ({
             reportId,
+            submissionId: typeof row.submissionId === "string" ? row.submissionId : null,
             vehicle: row.vehicle || "",
             amount: big(row.amount),
             part: row.part || null,
@@ -123,13 +126,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
     if (Array.isArray(body.fuel)) {
       const rows = body.fuel as {
-        particular?: string; date?: unknown; inGal?: unknown; outGal?: unknown; balanceGal?: unknown; balanceOk?: boolean | null;
+        particular?: string; date?: unknown; inGal?: unknown; outGal?: unknown; balanceGal?: unknown; balanceOk?: boolean | null; submissionId?: unknown;
       }[];
       await tx.fuelEntry.deleteMany({ where: { reportId } });
       if (rows.length) {
         await tx.fuelEntry.createMany({
           data: rows.map((row) => ({
             reportId,
+            submissionId: typeof row.submissionId === "string" ? row.submissionId : null,
             vehicle: "",
             particular: row.particular || null,
             // Round-tripped per-row date (Telegram ingest); fallback = page date.
@@ -144,12 +148,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
 
     if (Array.isArray(body.brick)) {
-      const rows = body.brick as { item?: string; date?: unknown; qty?: unknown; unitPrice?: unknown; amount?: unknown }[];
+      const rows = body.brick as { item?: string; date?: unknown; qty?: unknown; unitPrice?: unknown; amount?: unknown; submissionId?: unknown }[];
       await tx.brickEntry.deleteMany({ where: { reportId } });
       if (rows.length) {
         await tx.brickEntry.createMany({
           data: rows.map((row) => ({
             reportId,
+            submissionId: typeof row.submissionId === "string" ? row.submissionId : null,
             item: row.item || "",
             // Round-tripped per-row date (Telegram ingest); fallback = page date.
             date: typeof row.date === "string" && row.date ? (extractContentDate(row.date) ?? date) : date,
@@ -161,11 +166,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       }
     }
 
-    const [revenue, expense, fuel] = await Promise.all([
-      tx.revenueLine.aggregate({ where: { reportId }, _sum: { amount: true } }),
-      tx.expenseLine.aggregate({ where: { reportId }, _sum: { amount: true } }),
-      tx.fuelEntry.aggregate({ where: { reportId }, _sum: { inGal: true, outGal: true } }),
-    ]);
+    // An interactive transaction owns one database connection. Run these
+    // aggregates in sequence: Promise.all cannot parallelize them and can
+    // cause concurrent-client warnings with the pg adapter.
+    const revenue = await tx.revenueLine.aggregate({ where: { reportId }, _sum: { amount: true } });
+    const expense = await tx.expenseLine.aggregate({ where: { reportId }, _sum: { amount: true } });
+    const fuel = await tx.fuelEntry.aggregate({ where: { reportId }, _sum: { inGal: true, outGal: true } });
     const next = await tx.dailyReport.update({
       where: { id: reportId },
       data: {
@@ -176,7 +182,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       },
     });
     return next;
-  }, { isolationLevel: "Serializable" });
+  }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 30000 });
 
   return NextResponse.json({
     report: JSON.parse(JSON.stringify(updated, (_key, value) => (typeof value === "bigint" ? Number(value) : value))),
@@ -184,6 +190,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   } catch (cause) {
     if ((cause instanceof Error && cause.message === "STALE_REPORT") || (cause as { code?: string })?.code === "P2034") {
       return NextResponse.json({ message: "This report changed while you were editing. Close and reopen the editor to load the latest data." }, { status: 409 });
+    }
+    if ((cause as { code?: string })?.code === "P2002") {
+      return NextResponse.json({ message: "A report already exists for that date. Choose a different date." }, { status: 409 });
+    }
+    if ((cause as { code?: string })?.code === "P2028") {
+      return NextResponse.json({ message: "Saving the report timed out. No changes were saved; please try again." }, { status: 503 });
     }
     throw cause;
   }

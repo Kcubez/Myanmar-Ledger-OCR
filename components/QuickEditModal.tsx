@@ -7,10 +7,11 @@ import { Modal } from "./Modal";
 import { AmountInput } from "./AmountInput";
 import { useToast } from "./ToastProvider";
 
-type RevenueRow = { method: string; amount: number };
-type ExpenseRow = { category: string; name: string | null; amount: number };
+type RevenueRow = { id: string; submissionId: string | null; method: string; amount: number };
+type ExpenseRow = { id: string; submissionId: string | null; category: string; name: string | null; amount: number };
 type FuelRow = {
   id: string;
+  submissionId: string | null;
   particular: string | null;
   date: string | null;
   inGal: number | null;
@@ -20,15 +21,23 @@ type FuelRow = {
 };
 type BrickRow = {
   id: string;
+  submissionId: string | null;
   item: string;
   date: string | null;
   qty: number | null;
   unitPrice: number | null;
   amount: number | null;
 };
-type MaintRow = { id: string; vehicle: string; amount: number; part: string | null };
-type RevRow = { id: string; method: string; amount: number };
-type ExpRow = { id: string; category: string; name: string | null; amount: number };
+type MaintRow = { id: string; submissionId: string | null; vehicle: string; amount: number; part: string | null };
+type RevRow = { id: string; submissionId: string | null; method: string; amount: number };
+type ExpRow = { id: string; submissionId: string | null; category: string; name: string | null; amount: number };
+
+async function moveSubmission(submissionId: string | null | undefined, date: string, originalDate: string) {
+  if (date === originalDate) return;
+  if (!submissionId) throw new Error("This older entry cannot be moved individually. Open its source upload first.");
+  const response = await fetch(`/api/ledger-submissions/${submissionId}/date`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date }) });
+  if (!response.ok) throw new Error((await response.json()).message ?? "Date change failed.");
+}
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -65,6 +74,7 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
   const [saving, setSaving] = useState(false);
   const [rev, setRev] = useState<RevenueRow[] | null>(null);
   const [revision, setRevision] = useState<string | null>(null);
+  const [reportDate, setReportDate] = useState(dateKey);
   const [exp, setExp] = useState<ExpenseRow[] | null>(null);
 
   async function load() {
@@ -75,11 +85,12 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
       const response = await fetch(`/api/reports/${dateKey}`);
       if (!response.ok) throw new Error("Load failed.");
       const data = (await response.json()) as {
-        report: { revision: string; revenueLines: RevenueRow[]; expenseLines: ExpenseRow[] };
+        report: { revision: string; date: string; revenueLines: RevenueRow[]; expenseLines: ExpenseRow[] };
       };
       setRev(data.report.revenueLines);
       setExp(data.report.expenseLines);
       setRevision(data.report.revision);
+      setReportDate(data.report.date.slice(0, 10));
     } catch {
       toast.error("Load failed.");
     } finally {
@@ -91,6 +102,16 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
     if (!revision || loading) return;
     setSaving(true);
     try {
+      const rows = kind === "revenue" ? rev : exp;
+      const submissions = new Set((rows ?? []).map((row) => row.submissionId).filter(Boolean));
+      if (reportDate !== dateKey) {
+        if (submissions.size > 1) throw new Error("This day has multiple source uploads. Correct each source upload date separately.");
+        await moveSubmission([...submissions][0], reportDate, dateKey);
+        setOpen(false);
+        toast.success("Date changed. Reopen this editor to change amounts.");
+        router.refresh();
+        return;
+      }
       const body = kind === "revenue" ? { revenue: rev } : { expense: exp };
       const response = await fetch(`/api/reports/${dateKey}`, {
         method: "PATCH",
@@ -120,6 +141,9 @@ export function QuickEditModal({ dateKey, kind }: { dateKey: string; kind: "reve
             <p className="muted">Loading…</p>
           ) : (
             <div style={{ display: "grid", gap: 8 }}>
+              <Field label="Date">
+                <input type="date" value={reportDate} style={boxStyle} onChange={(event) => setReportDate(event.target.value)} />
+              </Field>
               {kind === "revenue"
                 ? (rev ?? []).map((row, i) => (
                     <Field key={row.method} label={METHOD_LABELS[row.method] ?? row.method}>
@@ -190,6 +214,7 @@ export function RowEditModal({
   const [saving, setSaving] = useState(false);
   const [fuel, setFuel] = useState<FuelRow[] | null>(null);
   const [revision, setRevision] = useState<string | null>(null);
+  const [reportDate, setReportDate] = useState(dateKey);
   const [brick, setBrick] = useState<BrickRow[] | null>(null);
   const [maint, setMaint] = useState<MaintRow[] | null>(null);
   const [rev, setRev] = useState<RevRow[] | null>(null);
@@ -205,6 +230,7 @@ export function RowEditModal({
       const data = (await response.json()) as {
         report: {
           revision: string;
+          date: string;
           fuelEntries: FuelRow[];
           brickEntries: BrickRow[];
           maintenanceLines: MaintRow[];
@@ -214,6 +240,7 @@ export function RowEditModal({
       };
       setFuel(data.report.fuelEntries);
       setRevision(data.report.revision);
+      setReportDate(data.report.date.slice(0, 10));
       setBrick(data.report.brickEntries);
       setMaint(data.report.maintenanceLines);
       setRev(data.report.revenueLines);
@@ -229,6 +256,13 @@ export function RowEditModal({
     if (!revision || loading) return;
     setSaving(true);
     try {
+      if (reportDate !== dateKey) {
+        await moveSubmission((row as { submissionId?: string | null } | undefined)?.submissionId, reportDate, dateKey);
+        setOpen(false);
+        toast.success("Date changed. Reopen this editor to change values.");
+        router.refresh();
+        return;
+      }
       const body =
         kind === "fuel"
           ? { fuel }
@@ -295,6 +329,9 @@ export function RowEditModal({
             <p className="muted">Row no longer exists.</p>
           ) : (
             <div style={{ display: "grid", gap: 8 }}>
+              {kind !== "fuel" && kind !== "brick" && kind !== "wage" && <Field label="Photo date">
+                <input type="date" value={reportDate} style={boxStyle} onChange={(event) => setReportDate(event.target.value)} />
+              </Field>}
               {kind === "fuel" && (
                 <>
                   <Field label="Particular">

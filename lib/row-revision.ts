@@ -7,9 +7,9 @@ const digest = (parts: Scalar[]) => createHash("sha256").update(JSON.stringify(p
 /** Stable version tokens for the two row-level editors. */
 export function inventoryRowRevision(row: {
   id: string; reportId: string; sheetKind: string; position: number; category: string; particular: string; remark: string | null;
-  unit: string; quantityIn: Scalar; quantityOut: Scalar; balance: Scalar; balanceOk: boolean | null;
+  unit: string; quantityIn: Scalar; quantityOut: Scalar; balance: Scalar; balanceOk: boolean | null; report?: { date: Date };
 }) {
-  return digest(["inventory", row.id, row.reportId, row.sheetKind, row.position, row.category, row.particular, row.remark, row.unit, row.quantityIn, row.quantityOut, row.balance, row.balanceOk]);
+  return digest(["inventory", row.id, row.reportId, row.sheetKind, row.position, row.category, row.particular, row.remark, row.unit, row.quantityIn, row.quantityOut, row.balance, row.balanceOk, row.report?.date?.toISOString()]);
 }
 
 export function wageRowRevision(row: { id: string; reportId: string; category: string; name: string | null; amount: Scalar }) {

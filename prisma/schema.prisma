@@ -197,8 +197,11 @@ model RevenueLine {
   report   DailyReport   @relation(fields: [reportId], references: [id], onDelete: Cascade)
   method   RevenueMethod
   amount   BigInt // kyat integer
+  submissionId String? @map("submission_id")
+  submission PendingUpload? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
 
   @@unique([reportId, method])
+  @@index([submissionId])
   @@map("revenue_line")
 }
 
@@ -209,8 +212,11 @@ model ExpenseLine {
   category ExpenseCategory
   name     String? // merged "name + role" (e.g. "6E-4110 Driver"); role column dropped
   amount   BigInt // kyat integer
+  submissionId String? @map("submission_id")
+  submission PendingUpload? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
 
   @@index([reportId, category])
+  @@index([submissionId])
   @@map("expense_line")
 }
 
@@ -222,8 +228,11 @@ model MaintenanceLine {
   amount   BigInt // kyat integer
   part     String?
   vendor   String?
+  submissionId String? @map("submission_id")
+  submission PendingUpload? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
 
   @@index([reportId])
+  @@index([submissionId])
   @@map("maintenance_line")
 }
 
@@ -239,8 +248,11 @@ model FuelEntry {
   balanceGal Decimal?    @db.Decimal(10, 2) @map("balance_gal")
   balanceOk  Boolean?    @map("balance_ok")
   confidence Float?
+  submissionId String? @map("submission_id")
+  submission PendingUpload? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
 
   @@index([reportId, vehicle])
+  @@index([submissionId])
   @@map("fuel_entry")
 }
 
@@ -254,8 +266,11 @@ model BrickEntry {
   unitPrice  BigInt?     @map("unit_price")
   amount     BigInt?
   confidence Float?
+  submissionId String? @map("submission_id")
+  submission PendingUpload? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
 
   @@index([reportId])
+  @@index([submissionId])
   @@map("brick_entry")
 }
 
@@ -270,8 +285,11 @@ model SourceImage {
   sizeBytes      Int?        @map("size_bytes")
   rawText        String?     @db.Text @map("raw_text")
   createdAt      DateTime    @default(now()) @map("created_at")
+  submissionId   String?     @map("submission_id")
+  submission     PendingUpload? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
 
   @@index([reportId, ledgerType])
+  @@index([submissionId])
   @@map("source_image")
 }
 
@@ -302,7 +320,16 @@ model PendingUpload {
   mode      String
   payload   Json
   status    String @default("PENDING")
+  effectiveDate DateTime @map("effective_date") @db.Date
+  approvedAt DateTime? @map("approved_at")
   createdAt DateTime @default(now()) @map("created_at")
+  revenueLines RevenueLine[]
+  expenseLines ExpenseLine[]
+  maintenanceLines MaintenanceLine[]
+  fuelEntries FuelEntry[]
+  brickEntries BrickEntry[]
+  inventoryEntries InventoryEntry[]
+  images SourceImage[]
   @@index([reportId, status])
   @@map("pending_upload")
 }
@@ -322,7 +349,10 @@ model InventoryEntry {
   quantityOut Decimal? @db.Decimal(14, 3) @map("quantity_out")
   balance Decimal? @db.Decimal(14, 3)
   balanceOk Boolean? @map("balance_ok")
+  submissionId String? @map("submission_id")
+  submission PendingUpload? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
   @@unique([reportId, sheetKind, position])
   @@index([category, reportId])
+  @@index([submissionId])
   @@map("inventory_entry")
 }

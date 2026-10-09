@@ -10,6 +10,6 @@ export function reportRevision(report: Record<string, unknown>): string {
   const snapshot = Object.keys(editableRelations).map(key => [key,
     [...(report[key] as { id: string }[])].sort((a, b) => a.id.localeCompare(b.id)),
   ]);
-  return createHash("sha256").update(JSON.stringify([report.status, snapshot],
+  return createHash("sha256").update(JSON.stringify([report.status, report.date, snapshot],
     (_key, value) => typeof value === "bigint" ? value.toString() : value)).digest("hex");
 }

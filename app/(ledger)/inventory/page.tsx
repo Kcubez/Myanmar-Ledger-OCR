@@ -48,7 +48,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               <td data-label="Particular">{row.particular || "—"}{row.balanceOk === false && <span title="Running balance does not match the previous row"> · ⚠ Balance mismatch</span>}</td>
               <td data-label="In" className="num">{quantity(row.quantityIn)}</td><td data-label="Out" className="num">{quantity(row.quantityOut)}</td><td data-label="Balance" className="num"><strong>{quantity(row.balance)}</strong></td><td data-label="Unit">{row.category === "brick" ? "Nos" : row.unit}</td>
               <td data-label="Remark" className="inventory-remark">{row.remark || "—"}</td>
-              <td data-label="Actions" className="actions"><LedgerRowActions id={row.id} kind="inventory" revision={inventoryRowRevision(row)} values={{ particular: row.particular, remark: row.remark || "", quantityIn: row.quantityIn === null ? null : Number(row.quantityIn), quantityOut: row.quantityOut === null ? null : Number(row.quantityOut), balance: row.balance === null ? null : Number(row.balance) }} /></td>
+              <td data-label="Actions" className="actions"><LedgerRowActions id={row.id} kind="inventory" dateKey={row.report.date.toISOString().slice(0, 10)} submissionId={row.submissionId} revision={inventoryRowRevision(row)} values={{ particular: row.particular, remark: row.remark || "", quantityIn: row.quantityIn === null ? null : Number(row.quantityIn), quantityOut: row.quantityOut === null ? null : Number(row.quantityOut), balance: row.balance === null ? null : Number(row.balance) }} /></td>
             </tr>)}</tbody>
           </PaginatedTable></div>
     </section>

@@ -22,7 +22,7 @@ export function wagePatch(body: Record<string, unknown>) {
   return { name: body.name.trim(), amount: BigInt(body.amount) };
 }
 export async function changeInventoryRow(tx: Tx, id: string, patch: ReturnType<typeof inventoryPatch> | null, expectedRevision: string) {
-  const row = await tx.inventoryEntry.findFirst({ where: { id, report: { status: "CONFIRMED" } } });
+  const row = await tx.inventoryEntry.findFirst({ where: { id, report: { status: "CONFIRMED" } }, include: { report: { select: { date: true } } } });
   if (!row) throw new RowEditError("Approved inventory row no longer exists. Refresh and try again.");
   if (inventoryRowRevision(row) !== expectedRevision) throw new RowEditConflictError("This row changed in another tab. Refresh before editing it again.");
   if (patch) await tx.inventoryEntry.update({ where: { id }, data: patch });

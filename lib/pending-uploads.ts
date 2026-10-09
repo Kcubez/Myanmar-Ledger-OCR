@@ -34,10 +34,10 @@ export async function resolveUpload(id: string, approved: boolean) {
         const newer = await tx.pendingUpload.count({ where: { reportId: upload.reportId, mode: "inventory", status: "CONFIRMED", createdAt: { gt: upload.createdAt }, payload: { path: ["sheetKind"], equals: payload.sheetKind } } });
         if (newer) throw new Error("A newer inventory sheet is already approved. Reject this older version.");
       }
-      await persistLines(tx, upload.reportId, upload.mode, upload.payload as unknown as ExtractedPayload, upload.report.date);
+      await persistLines(tx, upload.reportId, upload.id, upload.mode, upload.payload as unknown as ExtractedPayload, upload.effectiveDate);
       await tx.dailyReport.update({ where: { id: upload.reportId }, data: { status: "CONFIRMED" } });
     }
-    await tx.pendingUpload.update({ where: { id }, data: { status: approved ? "CONFIRMED" : "REJECTED" } });
+    await tx.pendingUpload.update({ where: { id }, data: { status: approved ? "CONFIRMED" : "REJECTED", ...(approved ? { approvedAt: new Date() } : {}) } });
     await tx.telegramMessage.update({ where: { id }, data: { status: approved ? "confirmed" : "rejected" } });
     return upload;
   }, { isolationLevel: "Serializable", timeout: 30000 });

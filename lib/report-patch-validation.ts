@@ -19,7 +19,7 @@ export function validateReportPatch(body: unknown): asserts body is Record<strin
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid edit.");
   const data = body as Record<string, unknown>;
   if (typeof data.expectedRevision !== "string" || !/^[a-f0-9]{64}$/.test(data.expectedRevision)) throw new Error("Reload the report before editing.");
-  if (Object.keys(data).some(key => ![...kinds, "expectedRevision"].includes(key))) throw new Error("Unsupported edit field. Use the approval queue to change status.");
+  if (Object.keys(data).some(key => ![...kinds, "expectedRevision"].includes(key))) throw new Error("Unsupported edit field. Use the submission date endpoint to correct a date.");
   if (!kinds.some(key => key in data)) throw new Error("No rows supplied.");
   for (const kind of kinds) {
     if (!(kind in data)) continue;
@@ -28,6 +28,7 @@ export function validateReportPatch(body: unknown): asserts body is Record<strin
     for (const row of data[kind] as unknown[]) {
       if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error("Invalid row.");
       const r = row as Record<string, unknown>;
+      if (r.submissionId !== undefined && r.submissionId !== null && (typeof r.submissionId !== "string" || r.submissionId.length > 100)) throw new Error("Invalid submission reference.");
       for (const key of ["name", "vehicle", "part", "particular", "item"]) {
         if (r[key] != null && (typeof r[key] !== "string" || (r[key] as string).length > 1000)) throw new Error(`Invalid ${key}.`);
       }

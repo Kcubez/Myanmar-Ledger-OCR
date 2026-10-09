@@ -18,6 +18,7 @@ async function mutate(req: NextRequest, ctx: Ctx, remove: boolean) {
   } catch (error) {
     if (error instanceof RowEditConflictError) return NextResponse.json({ message: error.message }, { status: 409 });
     if (error instanceof RowEditError) return NextResponse.json({ message: error.message }, { status: 400 });
+    if ((error as { code?: string })?.code === "P2002") return NextResponse.json({ message: "A report already exists for that date. Choose a different date." }, { status: 409 });
     return NextResponse.json({ message: "Unable to save. Refresh the records before trying again." }, { status: 409 });
   }
 }
